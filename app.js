@@ -35,12 +35,13 @@ const els = {};
  "controls","primary","autoBtn","autoDiscard","settingsBtn","waitLine","mine","coverBtn","mineCards","mineMade","mineAct","discardBtn","sitNote","seats",
  "shareSheet","bigCode","qrImg","shareLink","copyLink","scoreSheet","scoreBody","scoreNote","undoBtn","resetPts",
  "setSheet","setNote","variants","vHint","stakeChips","stakeIn","boardsChoice","diceChoice","revealChoice","setCount","setPlayers","setSave",
- "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast"
+ "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast","rulesPop","rulesList","rulesNote","rulesOk"
 ].forEach(id => els[id] = $(id));
 
 let toastTimer=0;
 function toast(msg){ els.toast.textContent=msg; els.toast.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{ els.toast.hidden=true; }, 3200); }
-const sp = () => SPEED[prefs.speed];
+const curSpeed = () => (S && S.settings && SPEED[S.settings.speed]) ? S.settings.speed : "norm";   // host decides for the whole table
+const sp = () => SPEED[curSpeed()];
 let tk = 0;
 function later(fn, ms){ const t=tk; setTimeout(()=>{ if (t===tk) fn(); }, ms); }
 function fmt(v){ return String(Math.round(v*100)/100).replace(".",","); }
@@ -131,6 +132,7 @@ function showGame(){
   els.entry.hidden=true; els.game.hidden=false;
   els.codeBtn.hidden=false; els.scoreBtn.hidden=viewer; els.menuBtn.hidden=false;
   els.app.classList.toggle("twocolor", !prefs.fourColor);
+  els.speed.value=curSpeed();
 }
 function setTab(join){
   els.tabJoin.setAttribute("aria-selected", String(join)); els.tabCreate.setAttribute("aria-selected", String(!join));
@@ -180,7 +182,7 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="1.3";
+const APP_VER="1.5";
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -188,7 +190,9 @@ function onState(st){
     if (tried!==st.ver){ try{ sessionStorage.setItem("prVerReload", st.ver); }catch(e){} location.reload(); return; }
   }
   if (st.hand) readyDeadline = Date.now() + (st.hand.readyLeft||0);
+  const prevSettings = S && S.settings;
   S=st; myId=st.you && st.you.id || null; viewer=!!(st.you && st.you.viewer);
+  checkRules(prevSettings);
   if (els.game.hidden) showGame();
   renderChrome();
   if (busy){ pendingRender=true; quickRefresh(); return; }
@@ -309,7 +313,7 @@ function restartAnim(e){ e.style.animation="none"; void e.offsetWidth; e.style.a
 function playThrow(rolls, onDone){
   throwTimers.forEach(clearTimeout); throwTimers=[];
   if (throwState && throwState.spin) clearInterval(throwState.spin);
-  const cfg=THROW[prefs.speed]||THROW.norm, th=cfg.th, nb=rolls.length, stag=170;
+  const cfg=THROW[curSpeed()]||THROW.norm, th=cfg.th, nb=rolls.length, stag=170;
   const fly=Math.round(th*0.5), start=Math.round(th*0.64);
   const ov=els.throw, fig=els.throwFig;
   ov.classList.remove("show","out","shake");
@@ -684,6 +688,42 @@ els.mLeave.addEventListener("click", ()=>{
 els.leaveNo.addEventListener("click", ()=>{ els.leaveSheet.hidden=true; });
 els.leaveYes.addEventListener("click", ()=>{ els.leaveSheet.hidden=true; send({t:"leave"}); });
 
+/* ---------- rules pop-up: shown to everyone (except the host who made the change) when the host changes the rules ---------- */
+let rulesRevSeen=null;
+function rulesRows(s){
+  return [
+    ["mode","Gra", MODES[s.mode].name + (MODES[s.mode].pine ? " · 3 karty, po flopie wyrzucasz jedną" : MODES[s.mode].omaha ? " · 2 z ręki i 3 ze stołu" : "")],
+    ["stake","Stawka", s.stake+" pkt od gracza"],
+    ["boards","Boardy", s.boards===1 ? "1 board" : s.boards+" boardy · pula dzielona na "+s.boards],
+    ["dice","Kostka po riverze", s.dice ? "tak · 1–5 wymienia kartę, 6 nic" : "bez kostki"],
+    ["reveal","Karty graczy", s.reveal ? "odkryte dla wszystkich" : "każdy widzi tylko swoje"]
+  ];
+}
+function checkRules(prev){
+  const rev=S.rulesRev||0;
+  if (rulesRevSeen===null || !prev){ rulesRevSeen=rev; return; }
+  if (rev===rulesRevSeen) return;
+  rulesRevSeen=rev;
+  if (isHost()){ toast("Zasady zapisane. Gracze dostali powiadomienie."); return; }
+  showRules(prev);
+}
+function showRules(prev){
+  const s=S.settings, h=S.hand, mid = h && h.street<4;
+  els.rulesList.innerHTML="";
+  rulesRows(s).forEach(([k,label,val])=>{
+    const ch = prev && prev[k]!==s[k];
+    const li=document.createElement("li"); if (ch) li.className="chg";
+    li.innerHTML='<span class="rl">'+esc(label)+'</span><span class="rv">'+esc(val)+'</span>'+(ch?'<span class="rnew">nowe</span>':'');
+    els.rulesList.appendChild(li);
+  });
+  els.rulesNote.textContent = (pname(S.hostId)+" zmienił zasady.") + (mid ? " Obowiązują od następnego rozdania." : "");
+  els.rulesPop.hidden=false;
+  els.rulesOk.focus();
+  if (viewer) setTimeout(()=>{ els.rulesPop.hidden=true; }, 10000);   // table screen: nobody to tap OK
+}
+els.rulesOk.addEventListener("click", ()=>{ els.rulesPop.hidden=true; });
+els.rulesPop.addEventListener("click", e=>{ if (e.target===els.rulesPop) els.rulesPop.hidden=true; });
+
 /* ---------- sheets ---------- */
 function openSheet(el){ el.hidden=false; }
 function closeSheet(el){ el.hidden=true; }
@@ -803,8 +843,8 @@ function closeMenu(){ els.menu.hidden=true; els.menuBtn.setAttribute("aria-expan
 els.menuBtn.addEventListener("click",e=>{ e.stopPropagation(); els.menu.hidden ? openMenu() : closeMenu(); });
 document.addEventListener("click",e=>{ if (!els.menu.hidden && !els.menu.contains(e.target) && e.target!==els.menuBtn) closeMenu(); });
 els.menu.addEventListener("click",e=>{ if (e.target.closest(".mitem")) closeMenu(); });
-els.speed.value=prefs.speed; els.fourc.checked=prefs.fourColor;
-els.speed.addEventListener("change",()=>{ prefs.speed=els.speed.value; saveJSON(PREF_KEY,prefs); });
+els.fourc.checked=prefs.fourColor;
+els.speed.addEventListener("change",()=>{ if (!isHost()) return; S.settings.speed=els.speed.value; send({t:"settings", settings:{speed:els.speed.value}}); toast("Tempo animacji zmienione dla wszystkich."); });
 els.fourc.addEventListener("change",()=>{ prefs.fourColor=els.fourc.checked; saveJSON(PREF_KEY,prefs); els.app.classList.toggle("twocolor", !prefs.fourColor); });
 
 /* ---------- wake lock ---------- */
@@ -815,8 +855,8 @@ document.addEventListener("visibilitychange",()=>{ if (document.visibilityState=
 /* ---------- boot ---------- */
 const lastName=loadJSON("pro-lastname");
 const POKER=["Negreanu","Ivey","Hellmuth","Brunson","Moneymaker","Dwan"];
-els.eName.value = (sess && sess.name) || lastName || "";
-if (!els.eName.value) els.eName.placeholder = "np. "+POKER[randInt(POKER.length)];
+els.eName.value = "";                       // always start empty; the grey hint says what to type
+els.eName.placeholder = "Wpisz swoje imię";
 const pathCode = (location.pathname.match(/^\/([A-Za-z0-9]{4})$/)||[])[1];
 const qCode = new URLSearchParams(location.search).get("k");
 const preset = (pathCode || qCode || "").toUpperCase();

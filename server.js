@@ -14,7 +14,7 @@ const E = require("./engine.js");
 
 const PORT = process.env.PORT || 3000;
 const PUB = __dirname;
-const VERSION = "1.3";
+const VERSION = "1.5";
 // only these files are served (everything sits in one folder, so server.js and package.json must stay private)
 const STATIC = new Set(["index.html","app.js","engine.js","style.css","online.css","thrower.jpg"]);
 const MAX_PLAYERS = 9;
@@ -50,7 +50,7 @@ function makeRoom(hostName) {
   const room = {
     code, created: Date.now(), touched: Date.now(), hostId: null,
     players: [], viewers: new Set(),
-    settings: { mode: "nlhe", stake: 10, boards: 1, dice: false, reveal: false },
+    settings: { mode: "nlhe", stake: 10, boards: 1, dice: false, reveal: false, speed: "norm" },
     points: {}, wins: {}, last: null, hands: 0, hand: null, seq: 0, log: []
   };
   rooms.set(code, room);
@@ -174,7 +174,7 @@ function viewFor(room, viewerId) {
     t: "state", seq: room.seq, code: room.code, hostId: room.hostId,
     ver: VERSION,
     you: me ? { id: me.id, name: me.name, host: me.id === room.hostId, sitOut: me.sitOut } : { viewer: true },
-    settings: room.settings, hands: room.hands, last: room.last,
+    settings: room.settings, rulesRev: room.rulesRev || 0, hands: room.hands, last: room.last,
     players: room.players.map(p => ({
       id: p.id, name: p.name, connected: p.connected, sitOut: p.sitOut,
       points: room.points[p.id] || 0, wins: room.wins[p.id] || 0,
@@ -286,12 +286,14 @@ function handle(ws, msg) {
       if (!isHost) return err("Tylko host może to zrobić.");
       switch (t) {
         case "settings": {
-          const s = room.settings, v = msg.settings || {};
+          const s = room.settings, v = msg.settings || {}, rulesKey = () => JSON.stringify([s.mode, s.stake, s.boards, s.dice, s.reveal]), before = rulesKey();
           if (E.MODES[v.mode]) s.mode = v.mode;
           if (Number.isFinite(+v.stake)) s.stake = Math.min(STAKES_MAX, Math.max(0, Math.round(+v.stake)));
           if ([1, 2, 3].includes(+v.boards)) s.boards = +v.boards;
           if (typeof v.dice === "boolean") s.dice = v.dice;
           if (typeof v.reveal === "boolean") s.reveal = v.reveal;
+          if (["slow", "norm", "fast"].includes(v.speed)) s.speed = v.speed;          // animation tempo is set by the host for the whole table
+          if (rulesKey() !== before) room.rulesRev = (room.rulesRev || 0) + 1;   // players get a pop-up with the new rules
           break;
         }
         case "next": {
