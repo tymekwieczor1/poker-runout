@@ -53,6 +53,8 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 5. **Każdy gracz** widzi u siebie panel „Twoje karty” z układem na każdym boardzie. W Ananasie po flopie każdy dotyka kartę do wyrzucenia u siebie. Host może wyrzucić automatycznie za kogoś, kto zwleka.
 6. **Ekran stołu:** na tablecie albo laptopie wpisz kod i wybierz „To jest ekran stołu”. Pokaże stół i wyniki bez niczyich kart.
 
+**Boardy:** przy 2 boardach pula dzieli się na pół. Przy 3 boardach kto wygra najwięcej boardów (zwykle 2), bierze całą pulę. Gdy jest remis (np. każdy wygrał po jednym), host klika **Dogrywka** i remisujący grają o całą pulę na jednym dodatkowym boardzie „D”.
+
 Inne:
 - Gracze mogą dołączać i odchodzić w trakcie gry. Nowa osoba dostaje karty od następnego rozdania.
 - „Pauzuję” w menu sprawia, że gracz nie dostaje kart, aż wróci.

@@ -144,3 +144,7 @@ body.ingame .top .brand .suitmark{font-size:1.6rem}
 .prow2 .cards{display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,48px)) minmax(max-content,1fr);gap:4px;align-items:center}
 .prow2 .cards .card{width:auto}
 .prow2 .cards .pct{grid-column:-2;justify-self:end;margin-left:0;font-size:clamp(1rem,4.6vw,1.3rem)}
+
+/* dogrywka board */
+.brow.po{margin-top:6px;padding-top:8px;border-top:1px dashed rgba(255,200,50,.45)}
+.brow.po .blabel{color:#ff8a7a}

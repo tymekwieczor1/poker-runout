@@ -166,7 +166,7 @@ els.eResume.addEventListener("click",()=>{ if (!sess) return; viewerCode=null; r
 els.eCode.addEventListener("input",()=>{ els.eCode.value=els.eCode.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4); });
 
 /* ---------- state handling & animation ---------- */
-let shown={handId:null, street:-1, diceDone:false, dealing:false};
+let shown={handId:null, street:-1, diceDone:false, dealing:false, po:false};
 let busy=false, pendingRender=false, auto=false, eqCache=null, covered=false, sel=null;
 let readyDeadline=0, autoAt=0, autoKey=null;
 function readyState(){
@@ -176,13 +176,15 @@ function readyState(){
   return {need:need.length, done, left, blocked: done<need.length && left>0, mine: need.includes(myId), meReady: h.ready.includes(myId)};
 }
 
-function hk(h){ return h ? h.id+":"+h.street+":"+(h.dice?1:0) : "none"; }
+function hk(h){ return h ? h.id+":"+h.street+":"+(h.dice?1:0)+":"+(h.playoff&&h.playoff.board?1:0) : "none"; }
+function poPending(h){ return !!(h && h.street===4 && h.playoff && !h.playoff.board); }
+function poDealt(h){ return !!(h && h.playoff && h.playoff.board); }
 function mode(){ return S && S.hand ? S.hand.mode : (S ? S.settings.mode : "nlhe"); }
 function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="1.6";
+const APP_VER="1.7";
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -208,6 +210,7 @@ function drive(){
   if (h.id!==shown.handId){ startHand(h); return; }
   if (h.street!==shown.street){ advanceStreet(h); return; }
   if (h.dice && !shown.diceDone){ animateDice(h); return; }
+  if (poDealt(h) && !shown.po){ animatePlayoff(h); return; }
   refresh();
 }
 function done(ms){
@@ -219,14 +222,14 @@ function done(ms){
   }, ms);
 }
 function resetTable(){
-  tk++; busy=false; pendingRender=false; auto=false; eqCache=null; sel=null;
-  shown={handId:null, street:-1, diceDone:false, dealing:false};
+  tk++; poAnim=false; busy=false; pendingRender=false; auto=false; eqCache=null; sel=null;
+  shown={handId:null, street:-1, diceDone:false, dealing:false, po:false};
   els.banner.hidden=true; els.diceRow.hidden=true; els.board.innerHTML="";
 }
 function startHand(h){
-  tk++; eqCache=null; sel=null; covered=false;
+  tk++; poAnim=false; eqCache=null; sel=null; covered=false;
   const animate = h.street===0;
-  shown={handId:h.id, street:h.street, diceDone:!!h.dice, dealing:animate};
+  shown={handId:h.id, street:h.street, diceDone:!!h.dice, dealing:animate, po:poDealt(h)};
   els.banner.hidden=true; setMeta(); renderControls();
   renderBoard(h, BOARD_N[h.street], null);
   diceStatic(h);
@@ -255,16 +258,28 @@ function advanceStreet(h){
 }
 function showdownRender(h){
   busy=true;
+  shown.po = poDealt(h);
   renderBoard(h, 5, null); diceStatic(h);
   refresh();
   done(500);
+}
+
+let poAnim=false;
+function animatePlayoff(h){
+  tk++; busy=true; shown.po=true; poAnim=true;
+  els.banner.hidden=true;
+  renderBoard(h, 5, null, true);
+  setMeta(); renderSeats(false); renderControls();
+  const t=4*sp().board + sp().flip + 900;
+  later(()=>{ poAnim=false; }, t-20);
+  done(t);
 }
 
 /* ---------- board ---------- */
 function dicePos(d,b){ return d && d.rolls[b]<=5 ? d.rolls[b]-1 : -1; }
 function boardCardAt(h,b,i){ return (h.dice && !shown.diceDone && dicePos(h.dice,b)===i) ? h.dice.old[b] : h.boards[b][i]; }
 function boardsNow(h){ return h.boards.map((bd,b)=>bd.slice(0,BOARD_N[h.street]).map((c,i)=>boardCardAt(h,b,i))); }
-function renderBoard(h, count, animFrom){
+function renderBoard(h, count, animFrom, poAnim){
   els.board.innerHTML="";
   const nb = h ? h.boards.length : (S ? S.settings.boards : 1);
   els.board.classList.toggle("multi", nb>1);
@@ -280,6 +295,17 @@ function renderBoard(h, count, animFrom){
       if (h && h.dice && shown.diceDone && dicePos(h.dice,b)===i && i<count) el.classList.add("swapped");
       row.appendChild(el);
     }
+    els.board.appendChild(row);
+  }
+  // dogrywka board (3-board games, tied lead)
+  if (h && h.playoff && h.playoff.board && shown.po){
+    const row=document.createElement("div"); row.className="brow po";
+    const l=document.createElement("span"); l.className="blabel"; l.textContent="D"; l.title="Dogrywka"; row.appendChild(l);
+    h.playoff.board.forEach((c,i)=>{
+      const el=makeCard(c, true, poAnim ? i*sp().board + 250 : null);
+      el.dataset.b="po"; el.dataset.i=i; if (i===3||i===4) el.classList.add("gap");
+      row.appendChild(el);
+    });
     els.board.appendChild(row);
   }
 }
@@ -413,7 +439,7 @@ function equity(h){
 }
 function resultLocal(h){
   if (h.street!==4 || !allKnown(h)) return null;
-  return E.resultFor(h.order.map(id=>effHole(h,id)), h.boards, h.mode);
+  return E.resultFor(h.order.map(id=>effHole(h,id)), h.boards, h.mode, (shown.po && !poAnim && h.playoff && h.playoff.board) || null);
 }
 function madeTexts(h, id){
   const m=MODES[h.mode], kb=boardsNow(h), eh=effHole(h,id);
@@ -436,14 +462,14 @@ function renderChrome(){
   document.querySelectorAll(".host-only").forEach(e=>e.hidden=!isHost());
   document.querySelectorAll(".player-only").forEach(e=>e.hidden=viewer);
   els.mLeave.hidden=false; els.mLeave.textContent = viewer ? "Zamknij ekran stołu" : "Opuść stół";
-  els.mAbort.hidden=!isHost() || !S.hand || S.hand.street===4;
+  els.mAbort.hidden=!isHost() || !S.hand || (S.hand.street===4 && !poPending(S.hand));
   const m=me(); els.mSit.textContent = m && m.sitOut ? "Wracam do gry" : "Pauzuję (nie rozdawaj mi)";
   els.scoreBtn.hidden=false;
 }
 function quickRefresh(){ renderSeats(false, true); renderControls(); if (!els.scoreSheet.hidden) renderScore(); }
 function setMeta(){
   const h=S.hand;
-  els.street.textContent = !h ? "Lobby" : (h.street===3 && h.dice ? "Kostka" : STREETS[h.street]);
+  els.street.textContent = !h ? "Lobby" : (h.street===3 && h.dice ? "Kostka" : (h.street===4 && h.playoff ? "Dogrywka" : STREETS[h.street]));
   els.handNo.textContent = h ? "#"+h.no+" · pula "+fmt(h.stake*h.order.length) : "";
   els.modeName.textContent = MODE_SHORT[mode()] + (h && h.boards.length>1 ? " ×"+h.boards.length : "");
 }
@@ -482,6 +508,24 @@ function renderBanner(){
   if (!multi){
     const p=res.per[0], w=p.winners;
     els.banner.innerHTML=(w.length===1 ? nmOf(w[0])+" wygrywa"+(pot>0?" "+sg(deltas[h.order[w[0]]]||0)+" pkt":"") : "Remis! Pula dzielona: "+w.map(nmOf).join(" i ")+(pot>0?" · "+sg(deltas[h.order[w[0]]]||0)+" pkt każdy":""))+' <small>· '+E.describe(p.best)+'</small>';
+  } else if (res.majority && (res.pending || res.po)){
+    const lines=res.per.map((p,b)=>'<span class="bl"><b>'+(b+1)+'</b> · '+(p.winners.length===1 ? nmOf(p.winners[0]) : "remis: "+p.winners.map(nmOf).join(" i "))+' · '+E.describe(p.best)+'</span>');
+    const tied=res.leaders.map(nmOf).join(", ");
+    let head;
+    if (res.pending) head="Remis po "+fmt(Math.round(res.pts[res.leaders[0]]*100)/100)+" boardzie: "+tied+" · dogrywka!";
+    else {
+      const w=res.po.winners;
+      head = w.length===1 ? "Dogrywka: "+nmOf(w[0])+" bierze całą pulę"+(pot>0?" "+sg(deltas[h.order[w[0]]]||0)+" pkt":"")
+                          : "Dogrywka: remis "+w.map(nmOf).join(" i ")+(pot>0?" · "+sg(deltas[h.order[w[0]]]||0)+" pkt każdy":"");
+      const used=new Set(); w.forEach(i=>res.po.det[i].cards.forEach(c=>used.add(c)));
+      els.board.querySelectorAll('.card[data-b="po"]').forEach(c=>c.classList.add(used.has(+c.dataset.c)?"used":"dim"));
+      lines.push('<span class="bl"><b>D</b> · '+(w.length===1?nmOf(w[0]):"remis: "+w.map(nmOf).join(" i "))+' · '+E.describe(res.po.best)+'</span>');
+    }
+    els.banner.innerHTML='<span>'+head+'</span>'+lines.join("");
+  } else if (res.majority){
+    const lines=res.per.map((p,b)=>'<span class="bl"><b>'+(b+1)+'</b> · '+(p.winners.length===1 ? nmOf(p.winners[0]) : "remis: "+p.winners.map(nmOf).join(" i "))+' · '+E.describe(p.best)+'</span>');
+    const L=res.leaders[0];
+    els.banner.innerHTML='<span>'+nmOf(L)+' wygrywa '+fmt(Math.round(res.pts[L]*100)/100)+' z 3 boardów i bierze całą pulę'+(pot>0?" "+sg(deltas[h.order[L]]||0)+" pkt":"")+'</span>'+lines.join("");
   } else {
     const lines=res.per.map((p,b)=>'<span class="bl"><b>'+(b+1)+'</b> · '+(p.winners.length===1 ? nmOf(p.winners[0]) : "remis: "+p.winners.map(nmOf).join(" i "))+' · '+E.describe(p.best)+'</span>');
     const gains=h.order.map((_,i)=>i).filter(i=>res.share[i]>0).sort((a,b)=>res.share[b]-res.share[a]).map(i=>nmOf(i)+(pot>0?" "+sg(deltas[h.order[i]]||0):" "+Math.round(res.share[i]*100)+"%"));
@@ -563,6 +607,7 @@ function renderSeats(animate, light){
     const st=document.createElement("span"); st.className="st";
     if (i<0) st.textContent = p.sitOut ? "pauzuje" : (h && h.street<4 ? "dołączy od następnego rozdania" : "czeka na rozdanie");
     else if (h.discards && h.street===1) st.innerHTML = h.discards[id]!=null ? '<span class="ok">✓ wyrzucił kartę</span>' : "wybiera kartę do wyrzucenia…";
+    else if (res && res.pending) st.innerHTML = res.leaders.includes(i) ? '<span class="wait">dogrywka</span>' : "przegrywa";
     else if (res){ const sh=res.share[i]; st.textContent = sh>0 ? (sh>=0.999?"wygrywa":"bierze "+Math.round(sh*100)+"% puli") : "przegrywa"; }
     else { const rs=readyState(); if (rs && h.need.includes(id) && (rs.blocked || h.ready.includes(id))) st.innerHTML = h.ready.includes(id) ? '<span class="ok">✓ gotowy</span>' : '<span class="wait">ogląda karty…</span>'; else st.textContent = id===S.hostId ? "prowadzi grę" : "w rozdaniu"; }
     main.appendChild(st);
@@ -589,7 +634,8 @@ function renderSeats(animate, light){
         const pc=document.createElement("span"); pc.className="pct"; pc.textContent=(eq.approx?"≈":"")+(eq.eq[i]*100).toFixed(1)+"%"; cards.appendChild(pc);
         if (eq.eq[i]===maxEq && maxEq>0) row.classList.add("lead");
       }
-      if (res){
+      if (res && res.pending){ if (!res.leaders.includes(i)) row.classList.add("lose"); else row.classList.add("lead"); }
+      else if (res){
         const sh=res.share[i]; row.classList.add(sh>0?"win":"lose");
         if (sh>0){ const used=new Set(); res.per.forEach(pp=>{ if (pp.winners.includes(i)) pp.det[i].cards.forEach(c=>used.add(c)); }); cards.querySelectorAll(".card").forEach(c=>{ if (!c.classList.contains("discarded")) c.classList.add(used.has(+c.dataset.c)?"used":"dim"); }); }
       }
@@ -630,15 +676,15 @@ setInterval(()=>{
   if (rs.need && (rs.blocked || !els.readyBar.hidden)) { renderReady(); renderControls(); }
   // auto-play for the host: move on as soon as the table allows it
   const h=S.hand;
-  if (auto && isHost() && !busy && Date.now()>=autoAt && !rs.blocked && !h.pending.length && h.street<4 && autoKey!==hk(h)){ autoKey=hk(h); next(); }
+  if (auto && isHost() && !busy && Date.now()>=autoAt && !rs.blocked && !h.pending.length && (h.street<4 || poPending(h)) && autoKey!==hk(h)){ autoKey=hk(h); next(); }
 }, 500);
 function renderControls(){
   const h=S.hand, host=isHost() && !viewer;
   const pend = h ? h.pending.length : 0;
   const rs = readyState();
   els.primary.hidden=!host;
-  els.settingsBtn.hidden=!host || (h && h.street<4);
-  els.autoBtn.hidden=!host || !h || h.street===4;
+  els.settingsBtn.hidden=!host || (h && h.street<4) || poPending(h);
+  els.autoBtn.hidden=!host || !h || (h.street===4 && !poPending(h));
   els.autoDiscard.hidden=!host || !pend;
   els.autoBtn.innerHTML = auto ? PAUSE_SVG : PLAY_SVG; els.autoBtn.classList.toggle("on", auto); els.autoBtn.setAttribute("aria-label", auto ? "Zatrzymaj odtwarzanie" : "Odtwórz rozdanie do końca");
   if (host){
@@ -647,6 +693,7 @@ function renderControls(){
     if (!h) label = seated<2 ? "Czekamy na graczy ("+seated+"/2)" : "Rozdaj";
     else if (pend) label = "Czekamy na wyrzucenie ("+(h.order.length-pend)+"/"+h.order.length+")";
     else if (h.street===3 && h.wantDice && !h.dice) label = h.boards.length>1 ? "Rzuć kostkami" : "Rzuć kostką";
+    else if (poPending(h)) label = "Dogrywka";
     else label = ["Flop","Turn","River","Pokaż zwycięzcę","Następne rozdanie"][h.street];
     const waitReady = !!(h && !pend && rs && rs.blocked);
     if (waitReady) label = "Czekamy na graczy "+rs.done+"/"+rs.need+" · "+Math.ceil(rs.left/1000)+" s";
@@ -655,7 +702,7 @@ function renderControls(){
   }
   els.waitLine.hidden = host || viewer;
   if (!els.waitLine.hidden){
-    els.waitLine.innerHTML = !h ? "Rozdaje <b>"+esc(pname(S.hostId))+"</b> (host)." : (pend ? "Czekamy, aż wszyscy wyrzucą kartę ("+(h.order.length-pend)+"/"+h.order.length+")." : (h.street===4 ? "Następne rozdanie rozda <b>"+esc(pname(S.hostId))+"</b>." : "Grę prowadzi <b>"+esc(pname(S.hostId))+"</b>."));
+    els.waitLine.innerHTML = !h ? "Rozdaje <b>"+esc(pname(S.hostId))+"</b> (host)." : (pend ? "Czekamy, aż wszyscy wyrzucą kartę ("+(h.order.length-pend)+"/"+h.order.length+")." : (poPending(h) ? "Remis na boardach — <b>"+esc(pname(S.hostId))+"</b> rozda dogrywkę." : h.street===4 ? "Następne rozdanie rozda <b>"+esc(pname(S.hostId))+"</b>." : "Grę prowadzi <b>"+esc(pname(S.hostId))+"</b>."));
   }
 }
 
@@ -668,7 +715,7 @@ function next(){
 function maybeAuto(){
   if (!auto || !isHost()) return;
   const h=S.hand;
-  if (!h || h.street===4){ auto=false; renderControls(); return; }
+  if (!h || (h.street===4 && !poPending(h))){ auto=false; renderControls(); return; }
   autoAt = Date.now() + sp().step;   // the 500 ms ticker sends "next" once the table is ready
 }
 els.primary.addEventListener("click", ()=>{ requestWake(); next(); });
@@ -698,7 +745,7 @@ function rulesRows(s){
   return [
     ["mode","Gra", MODES[s.mode].name + (MODES[s.mode].pine ? " · 3 karty, po flopie wyrzucasz jedną" : MODES[s.mode].omaha ? " · 2 z ręki i 3 ze stołu" : "")],
     ["stake","Stawka", s.stake+" pkt od gracza"],
-    ["boards","Boardy", s.boards===1 ? "1 board" : s.boards+" boardy · pula dzielona na "+s.boards],
+    ["boards","Boardy", s.boards===1 ? "1 board" : s.boards===2 ? "2 boardy · pula dzielona na 2" : "3 boardy · 2 wygrane = cała pula, remis → dogrywka"],
     ["dice","Kostka po riverze", s.dice ? "tak · 1–5 wymienia kartę, 6 nic" : "bez kostki"],
     ["reveal","Karty graczy", s.reveal ? "odkryte dla wszystkich" : "każdy widzi tylko swoje"]
   ];

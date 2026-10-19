@@ -14,7 +14,7 @@ const E = require("./engine.js");
 
 const PORT = process.env.PORT || 3000;
 const PUB = __dirname;
-const VERSION = "1.6";
+const VERSION = "1.7";
 // only these files are served (everything sits in one folder, so server.js and package.json must stay private)
 const STATIC = new Set(["index.html","app.js","engine.js","style.css","online.css","thrower.jpg"]);
 const MAX_PLAYERS = 9;
@@ -127,7 +127,13 @@ function autoDiscardFor(h, id) {
 
 function showdown(room) {
   const h = room.hand;
-  const res = E.resultFor(h.order.map(id => effHole(h, id)), h.boards, h.mode);
+  const holes = h.order.map(id => effHole(h, id));
+  const res = E.resultFor(holes, h.boards, h.mode, h.playoff && h.playoff.board);
+  if (res.pending) {              // 3 boards, tied lead: points wait for the dogrywka board
+    h.playoff = { ids: res.leaders.map(i => h.order[i]), board: null };
+    h.result = null;
+    return;
+  }
   const pot = h.stake * h.order.length;
   const d = {}, w = {};
   h.order.forEach((id, i) => { d[id] = round2(pot * res.share[i] - h.stake); if (res.share[i] > 0) w[id] = res.share[i]; });
@@ -144,10 +150,25 @@ function showdown(room) {
     deltas: d
   };
 }
+function dealPlayoff(h) {
+  // a fresh board from the rest of the deck; if it ran short, reshuffle every card that is not in a player's hand
+  let pool = h.deck.slice();
+  if (pool.length < 5) {
+    const inHand = new Set(h.order.flatMap(id => h.holes[id]));
+    pool = []; for (let c = 0; c < 52; c++) if (!inHand.has(c)) pool.push(c);
+    for (let i = pool.length - 1; i > 0; i--) { const j = randInt(i + 1); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  }
+  h.playoff.board = pool.slice(-5);
+}
+function handKey(h) { return h.id + ":" + h.street + ":" + (h.dice ? 1 : 0) + ":" + (h.playoff && h.playoff.board ? 1 : 0); }
 
 function advance(room) {
   const h = room.hand;
   const rb = readyBlock(room); if (rb) return rb;
+  if (h && h.street === 4 && h.playoff && !h.playoff.board) {   // dogrywka
+    dealPlayoff(h); showdown(room); newStage(h);
+    return null;
+  }
   if (!h || h.street === 4) return dealHand(room);
   if (pendingDiscards(h).length) return "Czekamy, aż wszyscy wyrzucą po 1 karcie.";
   if (h.street === 3 && h.wantDice && !h.dice) {
@@ -190,6 +211,7 @@ function viewFor(room, viewerId) {
       wantDice: h.wantDice, reveal: h.reveal,
       boards: h.boards.map(bd => bd.slice(0, n)),
       dice: h.dice, holes: {}, discards: null, pending: pendingDiscards(h), result: h.result,
+      playoff: h.street === 4 ? (h.playoff || null) : null,
       need: readyNeed(room), ready: Object.keys(h.ready || {}), readyLeft: Math.max(0, READY_MS - (Date.now() - (h.stageAt || 0)))
     };
     if (h.dice && n === 5) hv.boards = h.boards.map(bd => bd.slice());
@@ -297,7 +319,7 @@ function handle(ws, msg) {
           break;
         }
         case "next": {
-          if (msg.handId !== undefined && h && msg.handId !== h.id + ":" + h.street + ":" + (h.dice ? 1 : 0)) return; // stale click
+          if (msg.handId !== undefined && h && msg.handId !== handKey(h)) return; // stale click
           const e = advance(room); if (e) return err(e);
           break;
         }

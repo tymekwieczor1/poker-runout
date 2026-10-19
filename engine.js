@@ -172,7 +172,7 @@ function keep2(hole, boards){
 
 function maxPlayersFor(mode, nb, dice){ const m=MODES[mode]; return Math.min(m.max, Math.floor((52-5*nb-(dice?nb:0))/m.hole)); }
 /* holes: array of arrays of cards actually played (after discards); boards: arrays of 5 */
-function resultFor(holes, boards, mode){
+function resultFor(holes, boards, mode, playoff){
   const m=MODES[mode], nb=boards.length, n=holes.length;
   const per=boards.map(bd=>{
     const det=holes.map(x=>bestDetailed(x, bd, m.omaha));
@@ -181,14 +181,44 @@ function resultFor(holes, boards, mode){
     return {det, best, winners};
   });
   const share=new Array(n).fill(0);
-  per.forEach(r=>r.winners.forEach(i=>{ share[i]+=1/nb/r.winners.length; }));
-  return {per, share, nb};
+  if (nb!==3){
+    per.forEach(r=>r.winners.forEach(i=>{ share[i]+=1/nb/r.winners.length; }));
+    return {per, share, nb};
+  }
+  /* 3 boards: a board is worth 1 point (split boards share it). The leader takes the whole pot.
+     Tied leaders (e.g. 1:1:1) play a "dogrywka": one extra board only among them. */
+  const pts=new Array(n).fill(0);
+  per.forEach(r=>r.winners.forEach(i=>{ pts[i]+=1/r.winners.length; }));
+  const mx=Math.max.apply(null, pts), leaders=[];
+  pts.forEach((p,i)=>{ if (p>mx-1e-9) leaders.push(i); });
+  const out={per, share, nb, pts, leaders, majority:true, pending:false, po:null};
+  if (leaders.length===1){ share[leaders[0]]=1; return out; }
+  if (!playoff){ out.pending=true; return out; }
+  const det=holes.map((x,i)=>leaders.includes(i) ? bestDetailed(x, playoff, m.omaha) : null);
+  const best=Math.max.apply(null, leaders.map(i=>det[i].score));
+  const winners=leaders.filter(i=>det[i].score===best);
+  winners.forEach(i=>{ share[i]=1/winners.length; });
+  out.po={det, best, winners};
+  return out;
 }
 /* Equity averaged over boards. holesKnown: arrays of each player's hole cards (all known),
    boardsKnown: visible part of each board, dead: other cards out of the deck. */
 function equityMulti(holes, boardsKnown, omaha, dice, dead){
   const vs=boardsKnown.map((known,b)=>calcEquity(holes, known, omaha, dice, (dead||[]).concat(boardsKnown.filter((_,j)=>j!==b).flat())));
   const n=holes.length, nb=vs.length, out={eq:[], tie:[], approx:vs.some(x=>x.approx)};
+  if (nb===3){
+    // majority of 3 boards takes the pot; treat boards as independent, a tied lead (dogrywka) counted as an even split
+    const p=vs.map(x=>{ const s=x.eq.reduce((a,v)=>a+v,0)||1; return x.eq.map(v=>v/s); });
+    const eq=new Array(n).fill(0), pts=new Array(n);
+    for (let a=0;a<n;a++) if (p[0][a]) for (let b=0;b<n;b++) if (p[1][b]) for (let c=0;c<n;c++) if (p[2][c]){
+      const pr=p[0][a]*p[1][b]*p[2][c];
+      pts.fill(0); pts[a]++; pts[b]++; pts[c]++;
+      const mx=Math.max.apply(null, pts), lead=[]; pts.forEach((v,i)=>{ if (v===mx) lead.push(i); });
+      lead.forEach(i=>{ eq[i]+=pr/lead.length; });
+    }
+    out.eq=eq; out.tie=new Array(n).fill(0);
+    return out;
+  }
   for (let i=0;i<n;i++){ out.eq[i]=vs.reduce((a,x)=>a+x.eq[i],0)/nb; out.tie[i]=vs.reduce((a,x)=>a+x.tie[i],0)/nb; }
   return out;
 }
