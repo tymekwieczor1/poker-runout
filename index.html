@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a101c">
+<title>Poker Runout Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Rubik:wght@400;500;600;700;800;900&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="online.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand"><span class="suitmark" aria-hidden="true">♠</span><h1>Poker Runout</h1></div>
+    <div class="right">
+      <button type="button" class="codechip" id="codeBtn" hidden aria-label="Pokaż kod stołu"><span class="cl">Stół</span><b id="codeTxt">----</b></button>
+      <button type="button" class="scorebtn" id="scoreBtn" hidden>Wyniki</button>
+      <button type="button" class="iconbtn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="Menu" hidden>☰</button>
+    </div>
+    <div class="menu" id="menu" hidden>
+      <button type="button" class="mitem host-only" id="mSettings">Ustawienia stołu i gracze</button>
+      <button type="button" class="mitem host-only" id="mAbort" hidden>Przerwij rozdanie</button>
+      <button type="button" class="mitem player-only" id="mRename">Zmień imię</button>
+      <button type="button" class="mitem player-only" id="mSit">Pauzuję (nie rozdawaj mi)</button>
+      <button type="button" class="mitem warnitem" id="mLeave">Opuść stół</button>
+      <hr>
+      <label class="mrow" for="speed">Tempo animacji
+        <select id="speed">
+          <option value="slow">Wolno</option>
+          <option value="norm" selected>Normalnie</option>
+          <option value="fast">Szybko</option>
+        </select>
+      </label>
+      <label class="mrow"><span>Talia 4-kolorowa</span><input type="checkbox" id="fourc" checked></label>
+      <hr>
+      <details class="rules"><summary>Zasady</summary>
+        <p>Każdy w rozdaniu wkłada stawkę do puli, zwycięzca bierze pulę; przy remisie pula dzieli się po równo. Suma punktów zawsze wynosi zero.</p>
+        <p>Omaha (PLO): zawsze 2 karty z ręki i 3 ze stołu. Ananas: 3 karty, po flopie każdy wyrzuca jedną i gra dalej jak w Hold'em.</p>
+        <p>Kilka boardów: pula dzieli się na tyle części, ile jest boardów. Kostka po riverze: osobny rzut dla każdego boardu, 1–5 wymienia kartę o tym numerze, 6 nic nie zmienia.</p>
+        <p>Karty widzi tylko właściciel. Wszyscy zobaczą je dopiero na showdownie (albo od razu, gdy host ustawi karty odkryte).</p>
+      </details>
+    </div>
+  </header>
+
+  <!-- entry -->
+  <section class="home screen" id="entry">
+    <div class="hero">
+      <div class="fan" id="homeFan" aria-hidden="true"></div>
+    </div>
+    <div class="entrybox">
+      <button type="button" class="btn primary big" id="eResume" hidden>Wróć do stołu</button>
+      <label class="field" for="eName"><span>Twoje imię</span><input id="eName" maxlength="18" autocomplete="nickname" placeholder="np. Tymek"></label>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tabJoin" aria-selected="true">Dołącz do stołu</button>
+        <button type="button" role="tab" id="tabCreate" aria-selected="false">Załóż stół</button>
+      </div>
+      <form class="tabpane" id="paneJoin" autocomplete="off">
+        <label class="field" for="eCode"><span>Kod stołu</span><input id="eCode" class="codein" maxlength="4" inputmode="text" autocapitalize="characters" placeholder="K7QF"></label>
+        <button type="submit" class="btn primary big" id="eJoin">Dołącz</button>
+        <button type="button" class="linkbtn" id="eWatch">To jest ekran stołu (bez kart, np. tablet na środku)</button>
+      </form>
+      <form class="tabpane" id="paneCreate" hidden>
+        <p class="hint">Zostaniesz hostem: ustawiasz grę i rozdajesz, a przy tym grasz jak wszyscy.</p>
+        <button type="submit" class="btn primary big" id="eCreate">Załóż stół</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- game -->
+  <section class="screen" id="game" hidden>
+    <div class="lobbybar" id="lobbyBar" hidden>
+      <div><b id="lobbyTitle">Stół gotowy</b><span id="lobbySub"></span></div>
+      <button type="button" class="btn" id="lobbyShare">Pokaż kod</button>
+    </div>
+    <section class="table" id="tableSec" aria-label="Stół">
+      <div class="felt" id="felt">
+        <div class="felt-meta"><span id="street">Lobby</span><span id="handNo"></span><span id="modeName"></span></div>
+        <div class="board" id="board"></div>
+        <div class="dice-row" id="diceRow" hidden><div class="dice-set" id="diceSet"></div><span id="diceText"></span></div>
+        <div class="banner" id="banner" hidden></div>
+      </div>
+      <div class="controls" id="controls">
+        <button type="button" class="btn primary" id="primary" hidden>Rozdaj</button>
+        <button type="button" class="btn ytplay" id="autoBtn" hidden aria-label="Odtwórz rozdanie do końca" title="Odtwórz do końca"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></button>
+        <button type="button" class="btn" id="autoDiscard" hidden>Wyrzuć za spóźnionych</button>
+        <button type="button" class="btn btn2" id="settingsBtn" hidden>Zmień zasady</button>
+        <p class="waitline" id="waitLine" hidden></p>
+      </div>
+    </section>
+
+    <section class="mine" id="mine" hidden aria-label="Twoje karty">
+      <div class="minehead"><h3>Twoje karty</h3><button type="button" class="linkbtn" id="coverBtn">Zasłoń</button></div>
+      <div class="minecards" id="mineCards"></div>
+      <div class="minemade" id="mineMade"></div>
+      <div class="mineact" id="mineAct" hidden><button type="button" class="btn primary" id="discardBtn" disabled>Wybierz kartę do wyrzucenia</button></div>
+      <div class="readybar" id="readyBar" hidden><button type="button" class="btn primary" id="readyBtn">Gotowy</button><span class="readyinfo" id="readyInfo"></span></div>
+    </section>
+    <p class="sitnote" id="sitNote" hidden></p>
+
+    <section class="plist2" id="seats" aria-label="Gracze"></section>
+  </section>
+</div>
+
+<!-- sheets -->
+<div class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-label="Kod stołu" hidden>
+  <div class="sheet-box sharebox">
+    <div class="sheet-head"><h2>Kod stołu</h2><button type="button" class="iconbtn" data-close aria-label="Zamknij">×</button></div>
+    <div class="bigcode" id="bigCode">----</div>
+    <img class="qr" id="qrImg" alt="Kod QR z linkiem do stołu" width="200" height="200">
+    <p class="hint">Znajomi wpisują kod na stronie albo skanują kod QR.</p>
+    <div class="linkrow"><input id="shareLink" readonly aria-label="Link do stołu"><button type="button" class="btn" id="copyLink">Kopiuj</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="scoreSheet" role="dialog" aria-modal="true" aria-label="Wyniki" hidden>
+  <div class="sheet-box">
+    <div class="sheet-head"><h2>Wyniki</h2><button type="button" class="iconbtn" data-close aria-label="Zamknij">×</button></div>
+    <div style="overflow-x:auto"><table class="scoretbl"><thead><tr><th>#</th><th>Gracz</th><th>Ostatnie</th><th>Wygrane</th><th>Punkty</th></tr></thead><tbody id="scoreBody"></tbody></table></div>
+    <p class="hint" id="scoreNote"></p>
+    <div class="sheet-actions host-only">
+      <button type="button" class="btn" id="undoBtn">Cofnij ostatnie rozdanie</button>
+      <button type="button" class="btn" id="resetPts">Wyzeruj punkty</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="setSheet" role="dialog" aria-modal="true" aria-label="Ustawienia stołu" hidden>
+  <div class="sheet-box setbox">
+    <div class="sheet-head"><div><p class="eyebrow">Host</p><h2>Ustawienia stołu</h2></div><button type="button" class="iconbtn" data-close aria-label="Zamknij">×</button></div>
+    <p class="snote" id="setNote" hidden>Zmiany zaczną obowiązywać od następnego rozdania.</p>
+    <section class="sblock">
+      <div class="shead"><h3>Gra</h3></div>
+      <div class="vtiles" id="variants"></div>
+      <p class="vhint" id="vHint"></p>
+    </section>
+    <section class="sblock">
+      <div class="shead"><h3>Stawka</h3><span class="count">pkt od gracza</span></div>
+      <div class="pchips" id="stakeChips"></div>
+      <label class="ownstake" for="stakeIn">Własna stawka <input type="number" id="stakeIn" min="0" max="100000" step="1" inputmode="numeric" placeholder="np. 15"></label>
+    </section>
+    <section class="sblock opts3">
+      <div class="ogrp"><h3>Boardy</h3>
+        <div class="seg" id="boardsChoice"><button type="button" data-nb="1">1</button><button type="button" data-nb="2">2</button><button type="button" data-nb="3">3</button></div></div>
+      <div class="ogrp"><h3>Kostka po riverze</h3>
+        <div class="seg" id="diceChoice"><button type="button" data-dice="0">Bez</button><button type="button" data-dice="1">Z kostką</button></div></div>
+      <div class="ogrp wide"><h3>Karty graczy</h3>
+        <div class="seg" id="revealChoice"><button type="button" data-rev="0">Każdy widzi swoje</button><button type="button" data-rev="1">Odkryte dla wszystkich</button></div></div>
+    </section>
+    <section class="sblock">
+      <div class="shead"><h3>Gracze</h3><span class="count" id="setCount"></span></div>
+      <ol class="plist" id="setPlayers"></ol>
+      <p class="vhint">Nowi gracze dołączają kodem stołu. Ktoś, kto wejdzie w trakcie rozdania, dostanie karty od następnego.</p>
+    </section>
+    <div class="sfoot"><button type="button" class="btn primary sstart" id="setSave">Zapisz</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="nameSheet" role="dialog" aria-modal="true" aria-label="Zmień imię" hidden>
+  <form class="sheet-box" id="nameForm">
+    <div class="sheet-head"><h2>Zmień imię</h2><button type="button" class="iconbtn" data-close aria-label="Zamknij">×</button></div>
+    <label class="field" for="nameIn"><span>Imię przy stole</span><input id="nameIn" maxlength="18" autocomplete="nickname"></label>
+    <button type="submit" class="btn primary big">Zapisz</button>
+  </form>
+</div>
+
+<div class="peek" id="leaveSheet" role="dialog" aria-modal="true" aria-label="Opuść stół" hidden>
+  <div class="peek-box">
+    <h2>Opuścić stół?</h2>
+    <p class="peek-note" id="leaveNote">Twoje punkty zostaną przy stole, ale stracisz miejsce.</p>
+    <button type="button" class="btn primary" id="leaveYes">Opuść stół</button>
+    <button type="button" class="linkbtn" id="leaveNo">Zostaję</button>
+  </div>
+</div>
+
+<div class="throw" id="throw" aria-hidden="true" hidden>
+  <p class="skiphint">Dotknij, żeby pominąć</p>
+  <div class="thrower" id="throwFig"><img alt="" src="thrower.jpg"><div class="bubble" id="throwBubble">Rzucam!</div></div>
+</div>
+<div class="netbar" id="netBar" hidden>Łączenie ze stołem…</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

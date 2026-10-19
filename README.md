@@ -23,12 +23,18 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 2. Kliknij **New +**, potem **Web Service**.
 3. Wybierz repozytorium `poker-runout`. Jeśli go nie widać, kliknij **Configure account** i daj Renderowi dostęp do tego repozytorium.
 4. Ustawienia:
+   - **Region:** Frankfurt (EU Central), najbliżej Polski
    - **Language / Runtime:** Node
    - **Build Command:** `npm install`
    - **Start Command:** `npm start`
    - **Instance Type:** Free
 5. Kliknij **Create Web Service** i poczekaj 2–3 minuty, aż pojawi się **Live**.
 6. U góry zobaczysz adres w stylu `https://poker-runout-xxxx.onrender.com`. To jest twoja gra. Wyślij go znajomym albo po prostu pokaż im kod stołu.
+
+### Aktualizacja do nowej wersji (gdy serwis na Renderze już działa)
+1. Rozpakuj nową paczkę.
+2. W repozytorium na GitHubie wybierz **Add file**, potem **Upload files** i przeciągnij całą zawartość folderu (pliki i folder `public`). GitHub podmieni stare pliki.
+3. Kliknij **Commit changes**. Render sam zauważy zmianę i po 1–2 minutach postawi nową wersję. Postęp widać na Renderze w zakładce **Events**.
 
 ### Dobrze wiedzieć
 - **Darmowy plan usypia serwer** po ok. 15 minutach bez ruchu. Pierwsze wejście po przerwie trwa wtedy do minuty. Podczas gry serwer nie zaśnie.
@@ -41,9 +47,10 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 
 1. **Host:** wpisuje imię, wybiera **Załóż stół** i dostaje kod (np. `K7QF`). Przycisk z kodem u góry pokazuje duży kod, kod QR i link do skopiowania.
 2. **Gracze:** wchodzą na stronę, wpisują imię i kod i klikają **Dołącz**. Mogą też zeskanować QR, wtedy kod wpisze się sam.
-3. **Host** ustawia grę (Ustawienia): wersję, stawkę, liczbę boardów, kostkę i to, czy karty są ukryte, czy odkryte dla wszystkich. Potem klika **Rozdaj**, a następnie Flop, Turn, River, Rzuć kostką i Pokaż zwycięzcę. Przycisk **Do końca »** przeprowadza rozdanie automatycznie.
-4. **Każdy gracz** widzi u siebie panel „Twoje karty” z układem na każdym boardzie. W Ananasie po flopie każdy dotyka kartę do wyrzucenia u siebie. Host może wyrzucić automatycznie za kogoś, kto zwleka.
-5. **Ekran stołu:** na tablecie albo laptopie wpisz kod i wybierz „To jest ekran stołu”. Pokaże stół i wyniki bez niczyich kart.
+3. **Host** ustawia grę (Ustawienia): wersję, stawkę, liczbę boardów, kostkę i to, czy karty są ukryte, czy odkryte dla wszystkich. Potem klika **Rozdaj**, a następnie Flop, Turn, River, Rzuć kostką i Pokaż zwycięzcę. Czerwony przycisk **▶** przeprowadza rozdanie automatycznie (czeka na potwierdzenia graczy).
+4. **Potwierdzenia:** po każdym etapie (rozdanie, flop, turn, river, kostka, wyniki) każdy gracz ma przycisk **Gotowy**. Host może pójść dalej, gdy wszyscy potwierdzą albo gdy minie 30 sekund. Na przycisku hosta widać licznik, np. „Czekamy na graczy 2/4 · 18 s”.
+5. **Każdy gracz** widzi u siebie panel „Twoje karty” z układem na każdym boardzie. W Ananasie po flopie każdy dotyka kartę do wyrzucenia u siebie. Host może wyrzucić automatycznie za kogoś, kto zwleka.
+6. **Ekran stołu:** na tablecie albo laptopie wpisz kod i wybierz „To jest ekran stołu”. Pokaże stół i wyniki bez niczyich kart.
 
 Inne:
 - Gracze mogą dołączać i odchodzić w trakcie gry. Nowa osoba dostaje karty od następnego rozdania.

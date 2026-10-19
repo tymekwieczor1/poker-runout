@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 3000;
 const PUB = path.join(__dirname, "public");
 const MAX_PLAYERS = 9;
 const STAKES_MAX = 100000;
+const READY_MS = +process.env.READY_MS || 30 * 1000;                      // after every stage players have 30 s to confirm
 const ROOM_IDLE_MS = 6 * 60 * 60 * 1000;       // forget a table after 6 h without activity
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -88,6 +89,21 @@ function dealHand(room) {
     discards: m.pine ? Object.fromEntries(order.map(id => [id, null])) : null,
     result: null
   };
+  newStage(room.hand);
+  return null;
+}
+
+/* ---------- "ready" confirmations ---------- */
+function newStage(h) { h.stageAt = Date.now(); h.ready = {}; }
+function readyNeed(room) {
+  const h = room.hand; if (!h) return [];
+  return h.order.filter(id => id !== room.hostId && room.players.some(p => p.id === id));
+}
+function readyBlock(room) {
+  const h = room.hand; if (!h) return null;
+  const need = readyNeed(room), missing = need.filter(id => !h.ready[id]);
+  const left = READY_MS - (Date.now() - h.stageAt);
+  if (missing.length && left > 0) return "Czekamy na potwierdzenie graczy (" + (need.length - missing.length) + "/" + need.length + ") albo jeszcze " + Math.ceil(left / 1000) + " s.";
   return null;
 }
 
@@ -128,6 +144,7 @@ function showdown(room) {
 
 function advance(room) {
   const h = room.hand;
+  const rb = readyBlock(room); if (rb) return rb;
   if (!h || h.street === 4) return dealHand(room);
   if (pendingDiscards(h).length) return "Czekamy, aż wszyscy wyrzucą po 1 karcie.";
   if (h.street === 3 && h.wantDice && !h.dice) {
@@ -137,9 +154,11 @@ function advance(room) {
       if (r <= 5) { h.dice.old[b] = bd[r - 1]; h.dice.neu[b] = h.deck.pop(); bd[r - 1] = h.dice.neu[b]; }
       else { h.dice.old[b] = null; h.dice.neu[b] = null; }
     });
+    newStage(h);
     return null;
   }
   h.street++;
+  newStage(h);
   if (h.street === 4) showdown(room);
   return null;
 }
@@ -166,7 +185,8 @@ function viewFor(room, viewerId) {
       no: h.no, id: h.id, mode: h.mode, street: h.street, stake: h.stake, order: h.order,
       wantDice: h.wantDice, reveal: h.reveal,
       boards: h.boards.map(bd => bd.slice(0, n)),
-      dice: h.dice, holes: {}, discards: null, pending: pendingDiscards(h), result: h.result
+      dice: h.dice, holes: {}, discards: null, pending: pendingDiscards(h), result: h.result,
+      need: readyNeed(room), ready: Object.keys(h.ready || {}), readyLeft: Math.max(0, READY_MS - (Date.now() - (h.stageAt || 0)))
     };
     if (h.dice && n === 5) hv.boards = h.boards.map(bd => bd.slice());
     h.order.forEach(id => { if (open || id === viewerId) hv.holes[id] = h.holes[id]; });
@@ -249,6 +269,13 @@ function handle(ws, msg) {
       if (h.discards[me.id] != null) return err("Już wyrzuciłeś kartę.");
       if (!h.holes[me.id].includes(c)) return err("Nie masz tej karty.");
       h.discards[me.id] = c;
+      h.ready[me.id] = true;
+      break;
+    }
+    case "ready": {
+      if (!h || !h.holes[me.id]) return;
+      if (h.ready[me.id]) return;
+      h.ready[me.id] = true;
       break;
     }
     default: {
