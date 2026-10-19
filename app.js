@@ -182,7 +182,7 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="1.5";
+const APP_VER="1.6";
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -399,12 +399,14 @@ function effHole(h, id){
 function allKnown(h){ return h.order.every(id=>h.holes[id]); }
 function equity(h){
   if (!allKnown(h) || h.street>=4) return null;
-  const key=hk(h)+":"+JSON.stringify(h.discards||{});
+  // while the dice are still flying, keep showing the odds from before the roll (old board card, dice still to come)
+  const dicePending = !!(h.dice && !shown.diceDone);
+  const key=hk(h)+":"+(dicePending?"p":"")+":"+JSON.stringify(h.discards||{});
   if (eqCache && eqCache.key===key) return eqCache.v;
   const m=MODES[h.mode], kb=boardsNow(h);
   const holes=h.order.map(id=>{ const e=effHole(h,id); return e.length===3 ? E.keep2(e, kb) : e; });
   const dead=[]; if (m.pine) h.order.forEach(id=>h.holes[id].forEach(c=>dead.push(c)));
-  const withDice = h.wantDice && !h.dice && h.street<=3;
+  const withDice = h.wantDice && (!h.dice || dicePending) && h.street<=3;
   const v=E.equityMulti(holes, kb, m.omaha, withDice, dead);
   if (m.pine && h.discards && h.order.some(id=>typeof h.discards[id]!=="number")) v.approx=true;
   eqCache={key, v}; return v;
@@ -501,6 +503,7 @@ function renderMine(animate){
   const disc = h.discards ? h.discards[myId] : null;
   const canPick = h.discards && h.street===1 && disc==null;
   els.mineCards.className="minecards n"+n+(canPick?" pick":"")+(covered?" covered":"");
+  els.mineCards.style.setProperty("--n", n);
   if (animate || els.mineCards.dataset.hand!==h.id || els.mineCards.childElementCount!==n || canPick || els.mineCards.dataset.disc!==String(disc)){
     els.mineCards.innerHTML=""; els.mineCards.dataset.hand=h.id; els.mineCards.dataset.disc=String(disc);
     cards.forEach((c,k)=>{
@@ -572,6 +575,7 @@ function renderSeats(animate, light){
       const cards=document.createElement("div");
       const hideMine = id===myId && covered && h.street<4;   // "Zasłoń" also covers my row in the list
       cards.className="cards"+(hideMine?" covered":"");
+      cards.style.setProperty("--n", MODES[h.mode].hole);
       const known=h.holes[id];
       const n=MODES[h.mode].hole;
       for (let k=0;k<n;k++){
