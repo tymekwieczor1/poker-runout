@@ -107,3 +107,14 @@ body.ingame .top .brand .suitmark{font-size:1.6rem}
 .btn.btn2:hover{filter:brightness(.96);border-color:var(--chalk)}
 .btn.btn2:active:not(:disabled){box-shadow:0 1px 0 #9aa6bf;transform:translateY(3px)}
 .top .brand{display:none}
+.readybar{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.readybar .btn{width:100%;padding:14px;font-size:1.05rem}
+.readybar.done .btn{background:var(--panel);border-color:var(--club);color:var(--club);box-shadow:none}
+.readyinfo{text-align:center;font-size:.85rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.readyinfo b{color:var(--chalk)}
+.prow2 .st .wait{color:var(--brass)}
+.timerpill{display:inline-block;min-width:3.2ch;text-align:center;font-variant-numeric:tabular-nums}
+.hero{padding:22px 16px 18px}
+.fan{width:280px;height:150px;margin:8px 0 38px}
+.fan .card{width:86px;margin-left:-43px}
+.vtag{margin:6px 12px 4px;font-size:.72rem;color:var(--mute)}

@@ -15,7 +15,7 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 2. Kliknij **+** w prawym górnym rogu, potem **New repository**.
 3. Nazwa: `poker-runout`. Zostaw **Public** albo wybierz **Private** (oba działają) i kliknij **Create repository**.
 4. Na stronie nowego repozytorium kliknij link **uploading an existing file**.
-5. Rozpakuj `poker-runout-online.zip` na komputerze i przeciągnij do okna przeglądarki **zawartość** folderu: `server.js`, `package.json`, `package-lock.json`, `README.md`, `.gitignore` i cały folder `public`.
+5. Rozpakuj `poker-runout-online.zip` na komputerze, zaznacz **wszystkie pliki** z folderu (Ctrl+A) i przeciągnij je do okna przeglądarki. Wszystkie pliki leżą w jednym folderze, bez podfolderów.
 6. Na dole kliknij **Commit changes**.
 
 ### 2. Uruchom serwer na Render
@@ -33,8 +33,9 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 
 ### Aktualizacja do nowej wersji (gdy serwis na Renderze już działa)
 1. Rozpakuj nową paczkę.
-2. W repozytorium na GitHubie wybierz **Add file**, potem **Upload files** i przeciągnij całą zawartość folderu (pliki i folder `public`). GitHub podmieni stare pliki.
+2. W repozytorium na GitHubie (na głównej stronie, nie w żadnym podfolderze) wybierz **Add file**, potem **Upload files**, zaznacz wszystkie pliki z paczki (Ctrl+A) i przeciągnij je. GitHub podmieni stare pliki.
 3. Kliknij **Commit changes**. Render sam zauważy zmianę i po 1–2 minutach postawi nową wersję. Postęp widać na Renderze w zakładce **Events**.
+4. Sprawdź numer w menu ☰ (na dole). Telefony z otwartą starą wersją same się przeładują przy połączeniu ze stołem.
 
 ### Dobrze wiedzieć
 - **Darmowy plan usypia serwer** po ok. 15 minutach bez ruchu. Pierwsze wejście po przerwie trwa wtedy do minuty. Podczas gry serwer nie zaśnie.

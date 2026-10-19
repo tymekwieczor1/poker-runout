@@ -35,7 +35,7 @@ const els = {};
  "controls","primary","autoBtn","autoDiscard","settingsBtn","waitLine","mine","coverBtn","mineCards","mineMade","mineAct","discardBtn","sitNote","seats",
  "shareSheet","bigCode","qrImg","shareLink","copyLink","scoreSheet","scoreBody","scoreNote","undoBtn","resetPts",
  "setSheet","setNote","variants","vHint","stakeChips","stakeIn","boardsChoice","diceChoice","revealChoice","setCount","setPlayers","setSave",
- "nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast"
+ "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast"
 ].forEach(id => els[id] = $(id));
 
 let toastTimer=0;
@@ -166,6 +166,13 @@ els.eCode.addEventListener("input",()=>{ els.eCode.value=els.eCode.value.toUpper
 /* ---------- state handling & animation ---------- */
 let shown={handId:null, street:-1, diceDone:false, dealing:false};
 let busy=false, pendingRender=false, auto=false, eqCache=null, covered=false, sel=null;
+let readyDeadline=0, autoAt=0, autoKey=null;
+function readyState(){
+  const h=S && S.hand; if (!h || !h.need) return null;
+  const need=h.need, done=need.filter(id=>h.ready.includes(id)).length;
+  const left=Math.max(0, readyDeadline-Date.now());
+  return {need:need.length, done, left, blocked: done<need.length && left>0, mine: need.includes(myId), meReady: h.ready.includes(myId)};
+}
 
 function hk(h){ return h ? h.id+":"+h.street+":"+(h.dice?1:0) : "none"; }
 function mode(){ return S && S.hand ? S.hand.mode : (S ? S.settings.mode : "nlhe"); }
@@ -174,6 +181,7 @@ function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
 function onState(st){
+  if (st.hand) readyDeadline = Date.now() + (st.hand.readyLeft||0);
   S=st; myId=st.you && st.you.id || null; viewer=!!(st.you && st.you.viewer);
   if (els.game.hidden) showGame();
   renderChrome();
@@ -434,6 +442,7 @@ function refresh(){
   renderSeats(false);
   renderBanner();
   renderControls();
+  renderReady();
   if (!els.scoreSheet.hidden) renderScore();
 }
 function renderLobby(){
@@ -541,7 +550,7 @@ function renderSeats(animate, light){
     if (i<0) st.textContent = p.sitOut ? "pauzuje" : (h && h.street<4 ? "dołączy od następnego rozdania" : "czeka na rozdanie");
     else if (h.discards && h.street===1) st.innerHTML = h.discards[id]!=null ? '<span class="ok">✓ wyrzucił kartę</span>' : "wybiera kartę do wyrzucenia…";
     else if (res){ const sh=res.share[i]; st.textContent = sh>0 ? (sh>=0.999?"wygrywa":"bierze "+Math.round(sh*100)+"% puli") : "przegrywa"; }
-    else st.textContent = "w rozdaniu";
+    else { const rs=readyState(); if (rs && h.need.includes(id) && (rs.blocked || h.ready.includes(id))) st.innerHTML = h.ready.includes(id) ? '<span class="ok">✓ gotowy</span>' : '<span class="wait">ogląda karty…</span>'; else st.textContent = id===S.hostId ? "prowadzi grę" : "w rozdaniu"; }
     main.appendChild(st);
     row.appendChild(main);
     const pts=document.createElement("span"); const v=p.points;
@@ -581,9 +590,35 @@ function renderSeats(animate, light){
     els.seats.appendChild(row);
   });
 }
+function renderReady(){
+  const rs=readyState(), h=S && S.hand;
+  const pickPending = h && h.discards && h.street===1 && myId && h.discards[myId]==null;
+  const show = !!(rs && rs.mine && !viewer && !pickPending && (rs.blocked || rs.meReady) && !busy);
+  els.readyBar.hidden=!show;
+  if (!show) return;
+  els.readyBar.classList.toggle("done", rs.meReady);
+  els.readyBtn.disabled = rs.meReady;
+  els.readyBtn.textContent = rs.meReady ? "✓ Gotowe" : (h.street===4 ? "Gotowy na następne rozdanie" : "Gotowy");
+  els.readyInfo.innerHTML = rs.meReady ? (rs.done<rs.need ? "Czekamy na resztę: <b>"+rs.done+"/"+rs.need+"</b> · <span class=\"timerpill\">"+Math.ceil(rs.left/1000)+" s</span>" : "Wszyscy gotowi.")
+    : "Potwierdź, że widzisz karty · <span class=\"timerpill\">"+Math.ceil(rs.left/1000)+" s</span>";
+}
+els.readyBtn.addEventListener("click", ()=>{
+  const h=S && S.hand; if (!h || !myId) return;
+  if (!h.ready.includes(myId)) h.ready.push(myId);
+  send({t:"ready"}); renderReady(); renderSeats(false);
+});
+setInterval(()=>{
+  if (!S || !S.hand) return;
+  const rs=readyState(); if (!rs) return;
+  if (rs.need && (rs.blocked || !els.readyBar.hidden)) { renderReady(); renderControls(); }
+  // auto-play for the host: move on as soon as the table allows it
+  const h=S.hand;
+  if (auto && isHost() && !busy && Date.now()>=autoAt && !rs.blocked && !h.pending.length && h.street<4 && autoKey!==hk(h)){ autoKey=hk(h); next(); }
+}, 500);
 function renderControls(){
   const h=S.hand, host=isHost() && !viewer;
   const pend = h ? h.pending.length : 0;
+  const rs = readyState();
   els.primary.hidden=!host;
   els.settingsBtn.hidden=!host || (h && h.street<4);
   els.autoBtn.hidden=!host || !h || h.street===4;
@@ -596,8 +631,10 @@ function renderControls(){
     else if (pend) label = "Czekamy na wyrzucenie ("+(h.order.length-pend)+"/"+h.order.length+")";
     else if (h.street===3 && h.wantDice && !h.dice) label = h.boards.length>1 ? "Rzuć kostkami" : "Rzuć kostką";
     else label = ["Flop","Turn","River","Pokaż zwycięzcę","Następne rozdanie"][h.street];
+    const waitReady = !!(h && !pend && rs && rs.blocked);
+    if (waitReady) label = "Czekamy na graczy "+rs.done+"/"+rs.need+" · "+Math.ceil(rs.left/1000)+" s";
     els.primary.textContent=label;
-    els.primary.disabled = busy || !!pend || (!h && seated<2) || (h && h.street===4 && seated<2);
+    els.primary.disabled = busy || !!pend || waitReady || (!h && seated<2) || (h && h.street===4 && seated<2);
   }
   els.waitLine.hidden = host || viewer;
   if (!els.waitLine.hidden){
@@ -615,11 +652,10 @@ function maybeAuto(){
   if (!auto || !isHost()) return;
   const h=S.hand;
   if (!h || h.street===4){ auto=false; renderControls(); return; }
-  if (h.pending.length) return;
-  later(()=>{ if (auto && !busy) next(); }, sp().step);
+  autoAt = Date.now() + sp().step;   // the 500 ms ticker sends "next" once the table is ready
 }
 els.primary.addEventListener("click", ()=>{ requestWake(); next(); });
-els.autoBtn.addEventListener("click", ()=>{ auto=!auto; renderControls(); if (auto && !busy) next(); });
+els.autoBtn.addEventListener("click", ()=>{ auto=!auto; autoKey=null; autoAt=0; renderControls(); });
 els.autoDiscard.addEventListener("click", ()=>send({t:"autoDiscard"}));
 els.settingsBtn.addEventListener("click", openSettings);
 els.mSettings.addEventListener("click", openSettings);

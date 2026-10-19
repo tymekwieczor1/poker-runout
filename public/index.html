@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Rubik:wght@400;500;600;700;800;900&display=swap">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="online.css">
+<link rel="stylesheet" href="style.css?v=1.2">
+<link rel="stylesheet" href="online.css?v=1.2">
 </head>
 <body>
 <div class="app" id="app">
@@ -42,6 +42,7 @@
         <p>Kilka boardów: pula dzieli się na tyle części, ile jest boardów. Kostka po riverze: osobny rzut dla każdego boardu, 1–5 wymienia kartę o tym numerze, 6 nic nie zmienia.</p>
         <p>Karty widzi tylko właściciel. Wszyscy zobaczą je dopiero na showdownie (albo od razu, gdy host ustawi karty odkryte).</p>
       </details>
+      <p class="vtag">Wersja 1.2 · timer „Gotowy”</p>
     </div>
   </header>
 
@@ -49,8 +50,6 @@
   <section class="home screen" id="entry">
     <div class="hero">
       <div class="fan" id="homeFan" aria-hidden="true"></div>
-      <h2>Poker Runout Online</h2>
-      <p>Host zakłada stół i podaje kod. Każdy gra na swoim telefonie i widzi tylko swoje karty.</p>
     </div>
     <div class="entrybox">
       <button type="button" class="btn primary big" id="eResume" hidden>Wróć do stołu</button>
@@ -98,6 +97,7 @@
       <div class="minecards" id="mineCards"></div>
       <div class="minemade" id="mineMade"></div>
       <div class="mineact" id="mineAct" hidden><button type="button" class="btn primary" id="discardBtn" disabled>Wybierz kartę do wyrzucenia</button></div>
+      <div class="readybar" id="readyBar" hidden><button type="button" class="btn primary" id="readyBtn">Gotowy</button><span class="readyinfo" id="readyInfo"></span></div>
     </section>
     <p class="sitnote" id="sitNote" hidden></p>
 
@@ -183,7 +183,7 @@
 <div class="netbar" id="netBar" hidden>Łączenie ze stołem…</div>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="engine.js"></script>
-<script src="app.js"></script>
+<script src="engine.js?v=1.2"></script>
+<script src="app.js?v=1.2"></script>
 </body>
 </html>

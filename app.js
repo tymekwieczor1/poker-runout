@@ -180,7 +180,13 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
+const APP_VER="1.3";
 function onState(st){
+  // a phone still running an older app.js than the server: reload once to pick up the new files
+  if (st.ver && st.ver!==APP_VER){
+    let tried=null; try{ tried=sessionStorage.getItem("prVerReload"); }catch(e){}
+    if (tried!==st.ver){ try{ sessionStorage.setItem("prVerReload", st.ver); }catch(e){} location.reload(); return; }
+  }
   if (st.hand) readyDeadline = Date.now() + (st.hand.readyLeft||0);
   S=st; myId=st.you && st.you.id || null; viewer=!!(st.you && st.you.viewer);
   if (els.game.hidden) showGame();
@@ -507,6 +513,7 @@ function renderMine(animate){
     });
   }
   els.coverBtn.textContent = covered ? "Pokaż" : "Zasłoń";
+  els.mineMade.hidden = covered;
   els.mineAct.hidden=!canPick;
   if (canPick){
     els.discardBtn.disabled = sel==null;
@@ -558,7 +565,9 @@ function renderSeats(animate, light){
     pts.innerHTML=sg(v)+" pkt"+(L && L.no && (id in L.d) && h && h.street===4 ? "<small>rozdanie "+sg(L.d[id])+"</small>" : "");
     row.appendChild(pts);
     if (i>=0){
-      const cards=document.createElement("div"); cards.className="cards";
+      const cards=document.createElement("div");
+      const hideMine = id===myId && covered && h.street<4;   // "Zasłoń" also covers my row in the list
+      cards.className="cards"+(hideMine?" covered":"");
       const known=h.holes[id];
       const n=MODES[h.mode].hole;
       for (let k=0;k<n;k++){
@@ -577,7 +586,7 @@ function renderSeats(animate, light){
         if (sh>0){ const used=new Set(); res.per.forEach(pp=>{ if (pp.winners.includes(i)) pp.det[i].cards.forEach(c=>used.add(c)); }); cards.querySelectorAll(".card").forEach(c=>{ if (!c.classList.contains("discarded")) c.classList.add(used.has(+c.dataset.c)?"used":"dim"); }); }
       }
       row.appendChild(cards);
-      if (known && !shown.dealing && !animate){
+      if (known && !hideMine && !shown.dealing && !animate){
         const kb=boardsNow(h);
         if (kb[0].length){
           const md=document.createElement("div"); md.className="made2";
@@ -663,7 +672,7 @@ els.mAbort.addEventListener("click", ()=>{ auto=false; send({t:"abort"}); });
 
 /* ---------- my actions ---------- */
 els.discardBtn.addEventListener("click", ()=>{ if (sel==null) return; send({t:"discard", card:sel}); sel=null; });
-els.coverBtn.addEventListener("click", ()=>{ covered=!covered; renderMine(false); });
+els.coverBtn.addEventListener("click", ()=>{ covered=!covered; renderMine(false); renderSeats(false); });
 els.mSit.addEventListener("click", ()=>{ const m=me(); if (m) send({t:"sitOut", value:!m.sitOut}); });
 els.mRename.addEventListener("click", ()=>{ const m=me(); els.nameIn.value=m?m.name:""; openSheet(els.nameSheet); setTimeout(()=>els.nameIn.focus(),50); });
 els.nameForm.addEventListener("submit", e=>{ e.preventDefault(); const n=els.nameIn.value.trim(); if (n){ send({t:"rename", name:n}); if (sess){ sess.name=n; saveJSON(SESS_KEY,sess); } } closeSheet(els.nameSheet); });

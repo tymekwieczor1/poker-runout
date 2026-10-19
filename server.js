@@ -10,10 +10,13 @@ const path = require("path");
 const crypto = require("crypto");
 const { WebSocketServer } = require("ws");
 const QRCode = require("qrcode");
-const E = require("./public/engine.js");
+const E = require("./engine.js");
 
 const PORT = process.env.PORT || 3000;
-const PUB = path.join(__dirname, "public");
+const PUB = __dirname;
+const VERSION = "1.3";
+// only these files are served (everything sits in one folder, so server.js and package.json must stay private)
+const STATIC = new Set(["index.html","app.js","engine.js","style.css","online.css","thrower.jpg"]);
 const MAX_PLAYERS = 9;
 const STAKES_MAX = 100000;
 const READY_MS = +process.env.READY_MS || 30 * 1000;                      // after every stage players have 30 s to confirm
@@ -169,6 +172,7 @@ function viewFor(room, viewerId) {
   const me = viewerId ? findPlayer(room, viewerId) : null;
   const out = {
     t: "state", seq: room.seq, code: room.code, hostId: room.hostId,
+    ver: VERSION,
     you: me ? { id: me.id, name: me.name, host: me.id === room.hostId, sitOut: me.sitOut } : { viewer: true },
     settings: room.settings, hands: room.hands, last: room.last,
     players: room.players.map(p => ({
@@ -373,11 +377,12 @@ const server = http.createServer(async (req, res) => {
     }
     let p = decodeURIComponent(url.pathname);
     if (p === "/" || /^\/[A-Za-z0-9]{4}$/.test(p)) p = "/index.html";   // /K7QF opens the join screen
-    const file = path.normalize(path.join(PUB, p));
-    if (!file.startsWith(PUB)) { res.writeHead(403); return res.end(); }
+    const name = p.slice(1);
+    if (!STATIC.has(name)) { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }); return res.end("Nie znaleziono"); }
+    const file = path.join(PUB, name);
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }); return res.end("Nie znaleziono"); }
-      res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": p === "/index.html" ? "no-cache" : "public, max-age=300" });
+      res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": /\.(jpg|png|svg)$/.test(p) ? "public, max-age=3600" : "no-cache" });
       res.end(data);
     });
   } catch (e) { res.writeHead(500); res.end(); }
