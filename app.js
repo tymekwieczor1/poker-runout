@@ -35,7 +35,7 @@ const els = {};
  "controls","primary","autoBtn","autoDiscard","settingsBtn","waitLine","mine","coverBtn","mineCards","mineMade","mineAct","discardBtn","sitNote","seats",
  "shareSheet","bigCode","qrImg","shareLink","copyLink","scoreSheet","scoreBody","scoreNote","undoBtn","resetPts",
  "setSheet","setNote","variants","vHint","stakeChips","stakeIn","boardsChoice","diceChoice","revealChoice","setCount","setPlayers","setSave",
- "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast","rulesPop","rulesList","rulesNote","rulesOk"
+ "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast","resPop","resEyebrow","resList","resOk","rulesPop","rulesList","rulesNote","rulesOk"
 ].forEach(id => els[id] = $(id));
 
 let toastTimer=0;
@@ -166,7 +166,7 @@ els.eResume.addEventListener("click",()=>{ if (!sess) return; viewerCode=null; r
 els.eCode.addEventListener("input",()=>{ els.eCode.value=els.eCode.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4); });
 
 /* ---------- state handling & animation ---------- */
-let shown={handId:null, street:-1, diceDone:false, dealing:false, po:false};
+let shown={handId:null, street:-1, diceDone:false, dealing:false, po:false, poDice:true};
 let busy=false, pendingRender=false, auto=false, eqCache=null, covered=false, sel=null;
 let readyDeadline=0, autoAt=0, autoKey=null;
 function readyState(){
@@ -184,7 +184,7 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="1.7";
+const APP_VER="1.9";
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -223,13 +223,15 @@ function done(ms){
 }
 function resetTable(){
   tk++; poAnim=false; busy=false; pendingRender=false; auto=false; eqCache=null; sel=null;
-  shown={handId:null, street:-1, diceDone:false, dealing:false, po:false};
+  shown={handId:null, street:-1, diceDone:false, dealing:false, po:false, poDice:true};
   els.banner.hidden=true; els.diceRow.hidden=true; els.board.innerHTML="";
 }
 function startHand(h){
-  tk++; poAnim=false; eqCache=null; sel=null; covered=false;
+  tk++; poAnim=false; eqCache=null;
+  els.resPop.hidden=true;
+  if (h.street===4) resShownFor=h.id;   // joined/reloaded on a finished hand: no pop-up sel=null; covered=false;
   const animate = h.street===0;
-  shown={handId:h.id, street:h.street, diceDone:!!h.dice, dealing:animate, po:poDealt(h)};
+  shown={handId:h.id, street:h.street, diceDone:!!h.dice, dealing:animate, po:poDealt(h), poDice:true};
   els.banner.hidden=true; setMeta(); renderControls();
   renderBoard(h, BOARD_N[h.street], null);
   diceStatic(h);
@@ -258,7 +260,7 @@ function advanceStreet(h){
 }
 function showdownRender(h){
   busy=true;
-  shown.po = poDealt(h);
+  shown.po = poDealt(h); shown.poDice = true;
   renderBoard(h, 5, null); diceStatic(h);
   refresh();
   done(500);
@@ -267,12 +269,31 @@ function showdownRender(h){
 let poAnim=false;
 function animatePlayoff(h){
   tk++; busy=true; shown.po=true; poAnim=true;
+  const pd=h.playoff.dice, t0=tk;
+  shown.poDice=!pd;
   els.banner.hidden=true;
-  renderBoard(h, 5, null, true);
+  renderBoard(h, 5, null, true); diceStatic(h);
   setMeta(); renderSeats(false); renderControls();
-  const t=4*sp().board + sp().flip + 900;
-  later(()=>{ poAnim=false; }, t-20);
-  done(t);
+  const finish=ms=>{ later(()=>{ poAnim=false; }, ms-20); done(ms); };
+  const dealT=4*sp().board + sp().flip + 500;
+  if (!pd){ finish(dealT+400); return; }
+  later(()=>{
+    els.diceRow.hidden=false; els.diceText.textContent="Dogrywka: leci kostka…";
+    playThrow([pd.roll], ()=>{
+      if (t0!==tk) return;
+      shown.poDice=true;
+      if (pd.roll>5){ diceStatic(h); finish(500); return; }
+      const old=els.board.querySelector('.card[data-b="po"][data-i="'+(pd.roll-1)+'"]');
+      if (old) old.classList.add("down");
+      later(()=>{
+        const el=makeCard(pd.neu, true, 0); el.classList.add("swapped"); if (pd.roll-1>=3) el.classList.add("gap");
+        el.dataset.b="po"; el.dataset.i=pd.roll-1;
+        if (old && old.parentNode) old.parentNode.replaceChild(el, old);
+        diceStatic(h);
+        finish(sp().flip+520);
+      }, 520);
+    });
+  }, dealT);
 }
 
 /* ---------- board ---------- */
@@ -301,8 +322,11 @@ function renderBoard(h, count, animFrom, poAnim){
   if (h && h.playoff && h.playoff.board && shown.po){
     const row=document.createElement("div"); row.className="brow po";
     const l=document.createElement("span"); l.className="blabel"; l.textContent="D"; l.title="Dogrywka"; row.appendChild(l);
+    const pd=h.playoff.dice, dp = pd && pd.roll<=5 ? pd.roll-1 : -1;
     h.playoff.board.forEach((c,i)=>{
+      if (i===dp && !shown.poDice) c=pd.old;
       const el=makeCard(c, true, poAnim ? i*sp().board + 250 : null);
+      if (i===dp && shown.poDice) el.classList.add("swapped");
       el.dataset.b="po"; el.dataset.i=i; if (i===3||i===4) el.classList.add("gap");
       row.appendChild(el);
     });
@@ -312,12 +336,12 @@ function renderBoard(h, count, animFrom, poAnim){
 
 /* ---------- dice ---------- */
 function setDie(n, el){ el.innerHTML=""; for (let i=0;i<9;i++){ const s=document.createElement("span"); if (PIPS[n].includes(i)) s.className="on"; el.appendChild(s); } }
-function smallDice(rolls, rolling){
+function smallDice(rolls, rolling, labels){
   els.diceSet.innerHTML="";
   const multi=rolls.length>1, out=[];
   rolls.forEach((r,b)=>{
     const w=document.createElement("div"); w.className="dwrap";
-    if (multi){ const l=document.createElement("span"); l.className="blabel"; l.textContent=b+1; w.appendChild(l); }
+    if (multi){ const l=document.createElement("span"); l.className="blabel"; l.textContent=labels ? labels[b] : b+1; w.appendChild(l); }
     const d=document.createElement("div"); d.className="die"+(rolling?" rolling":""); d.setAttribute("role","img"); d.setAttribute("aria-label",(multi?"board "+(b+1)+", ":"")+"kostka: "+r);
     setDie(r, d); w.appendChild(d); els.diceSet.appendChild(w); out.push(d);
   });
@@ -330,9 +354,15 @@ function diceMsg(d){
   return d.rolls.map((r,b)=>'<span class="dline"><b>'+(b+1)+'</b> · '+(r===6 ? "6, bez zmian" : r+": "+cardTxt(d.old[b])+" → "+cardTxt(d.neu[b]))+'</span>').join("");
 }
 function diceStatic(h){
-  if (!h || !h.dice){ els.diceRow.hidden=true; return; }
-  els.diceRow.hidden=false; els.diceRow.classList.toggle("multi", h.dice.rolls.length>1);
-  smallDice(h.dice.rolls, false); els.diceText.innerHTML=diceMsg(h.dice);
+  const items=[];
+  if (h && h.dice) h.dice.rolls.forEach((r,b)=>items.push({l:String(b+1), r, old:h.dice.old[b], neu:h.dice.neu[b]}));
+  const pd=h && h.playoff && h.playoff.board && shown.po && shown.poDice ? h.playoff.dice : null;
+  if (pd) items.push({l:"D", r:pd.roll, old:pd.old, neu:pd.neu});
+  if (!items.length){ els.diceRow.hidden=true; return; }
+  els.diceRow.hidden=false; els.diceRow.classList.toggle("multi", items.length>1);
+  smallDice(items.map(x=>x.r), false, items.length>1 ? items.map(x=>x.l) : null);
+  els.diceText.innerHTML = (items.length===1 && !pd) ? diceMsg(h.dice)
+    : items.map(x=>'<span class="dline"><b>'+x.l+'</b> · '+(x.r===6 ? "6, bez zmian" : x.r+": "+cardTxt(x.old)+" → "+cardTxt(x.neu))+'</span>').join("");
 }
 let throwTimers=[], throwState=null;
 function restartAnim(e){ e.style.animation="none"; void e.offsetWidth; e.style.animation=""; }
@@ -470,9 +500,44 @@ function quickRefresh(){ renderSeats(false, true); renderControls(); if (!els.sc
 function setMeta(){
   const h=S.hand;
   els.street.textContent = !h ? "Lobby" : (h.street===3 && h.dice ? "Kostka" : (h.street===4 && h.playoff ? "Dogrywka" : STREETS[h.street]));
-  els.handNo.textContent = h ? "#"+h.no+" · pula "+fmt(h.stake*h.order.length) : "";
+  els.handNo.textContent = h ? "#"+h.no+" · pula "+fmt(h.stake*h.order.length)+" zł" : "";
   els.modeName.textContent = MODE_SHORT[mode()] + (h && h.boards.length>1 ? " ×"+h.boards.length : "");
 }
+/* ---------- end-of-hand standings pop-up ---------- */
+let resShownFor=null;
+function maybeResults(){
+  const h=S.hand;
+  if (!h || h.street!==4 || !h.result || busy || poAnim || resShownFor===h.id) return;
+  resShownFor=h.id;
+  later(showResults, 1800);          // let the winner banner sink in first
+}
+function showResults(){
+  const h=S.hand; if (!h || !h.result) return;
+  const L=S.last && S.last.no===h.no ? S.last.d : {};
+  const rows=S.players.map(p=>({id:p.id, name:p.name, pts:p.points, d:(p.id in L) ? L[p.id] : null}))
+    .sort((a,b)=>b.pts-a.pts || (b.d||0)-(a.d||0));
+  els.resEyebrow.textContent="Po rozdaniu #"+h.no;
+  els.resList.innerHTML="";
+  rows.forEach((r,i)=>{
+    const li=document.createElement("li"); if (r.id===myId) li.className="me";
+    const cls=v=>v>0?"pos":v<0?"neg":"";
+    li.innerHTML='<span class="rk">'+(i+1)+'</span><span class="rn"></span>'+
+      '<span class="rd '+cls(r.d||0)+'">'+(r.d==null?"":(r.d===0?"±0":sg(r.d))+" zł")+'</span>'+
+      '<span class="rt '+cls(r.pts)+'">'+sg(r.pts)+' zł</span>';
+    li.children[1].textContent=r.name;
+    els.resList.appendChild(li);
+  });
+  const rs=readyState(), needMe = rs && rs.mine && !rs.meReady;
+  els.resOk.textContent = needMe ? "OK, gotowy" : "OK";
+  els.resPop.hidden=false;
+  if (viewer) later(()=>{ els.resPop.hidden=true; }, 9000);
+}
+els.resOk.addEventListener("click", ()=>{
+  els.resPop.hidden=true;
+  if (!els.readyBar.hidden && !els.readyBar.classList.contains("done")) els.readyBtn.click();
+});
+els.resPop.addEventListener("click", e=>{ if (e.target===els.resPop) els.resPop.hidden=true; });
+
 function refresh(){
   setMeta();
   renderLobby();
@@ -482,6 +547,7 @@ function refresh(){
   renderControls();
   renderReady();
   if (!els.scoreSheet.hidden) renderScore();
+  maybeResults();
 }
 function renderLobby(){
   const h=S.hand, n=S.players.length;
@@ -507,7 +573,7 @@ function renderBanner(){
   els.banner.hidden=false; els.banner.classList.toggle("multi", multi);
   if (!multi){
     const p=res.per[0], w=p.winners;
-    els.banner.innerHTML=(w.length===1 ? nmOf(w[0])+" wygrywa"+(pot>0?" "+sg(deltas[h.order[w[0]]]||0)+" pkt":"") : "Remis! Pula dzielona: "+w.map(nmOf).join(" i ")+(pot>0?" · "+sg(deltas[h.order[w[0]]]||0)+" pkt każdy":""))+' <small>· '+E.describe(p.best)+'</small>';
+    els.banner.innerHTML=(w.length===1 ? nmOf(w[0])+" wygrywa"+(pot>0?" "+sg(deltas[h.order[w[0]]]||0)+" zł":"") : "Remis! Pula dzielona: "+w.map(nmOf).join(" i ")+(pot>0?" · "+sg(deltas[h.order[w[0]]]||0)+" zł każdy":""))+' <small>· '+E.describe(p.best)+'</small>';
   } else if (res.majority && (res.pending || res.po)){
     const lines=res.per.map((p,b)=>'<span class="bl"><b>'+(b+1)+'</b> · '+(p.winners.length===1 ? nmOf(p.winners[0]) : "remis: "+p.winners.map(nmOf).join(" i "))+' · '+E.describe(p.best)+'</span>');
     const tied=res.leaders.map(nmOf).join(", ");
@@ -515,8 +581,8 @@ function renderBanner(){
     if (res.pending) head="Remis po "+fmt(Math.round(res.pts[res.leaders[0]]*100)/100)+" boardzie: "+tied+" · dogrywka!";
     else {
       const w=res.po.winners;
-      head = w.length===1 ? "Dogrywka: "+nmOf(w[0])+" bierze całą pulę"+(pot>0?" "+sg(deltas[h.order[w[0]]]||0)+" pkt":"")
-                          : "Dogrywka: remis "+w.map(nmOf).join(" i ")+(pot>0?" · "+sg(deltas[h.order[w[0]]]||0)+" pkt każdy":"");
+      head = w.length===1 ? "Dogrywka: "+nmOf(w[0])+" bierze całą pulę"+(pot>0?" "+sg(deltas[h.order[w[0]]]||0)+" zł":"")
+                          : "Dogrywka: remis "+w.map(nmOf).join(" i ")+(pot>0?" · "+sg(deltas[h.order[w[0]]]||0)+" zł każdy":"");
       const used=new Set(); w.forEach(i=>res.po.det[i].cards.forEach(c=>used.add(c)));
       els.board.querySelectorAll('.card[data-b="po"]').forEach(c=>c.classList.add(used.has(+c.dataset.c)?"used":"dim"));
       lines.push('<span class="bl"><b>D</b> · '+(w.length===1?nmOf(w[0]):"remis: "+w.map(nmOf).join(" i "))+' · '+E.describe(res.po.best)+'</span>');
@@ -525,7 +591,7 @@ function renderBanner(){
   } else if (res.majority){
     const lines=res.per.map((p,b)=>'<span class="bl"><b>'+(b+1)+'</b> · '+(p.winners.length===1 ? nmOf(p.winners[0]) : "remis: "+p.winners.map(nmOf).join(" i "))+' · '+E.describe(p.best)+'</span>');
     const L=res.leaders[0];
-    els.banner.innerHTML='<span>'+nmOf(L)+' wygrywa '+fmt(Math.round(res.pts[L]*100)/100)+' z 3 boardów i bierze całą pulę'+(pot>0?" "+sg(deltas[h.order[L]]||0)+" pkt":"")+'</span>'+lines.join("");
+    els.banner.innerHTML='<span>'+nmOf(L)+' wygrywa '+fmt(Math.round(res.pts[L]*100)/100)+' z 3 boardów i bierze całą pulę'+(pot>0?" "+sg(deltas[h.order[L]]||0)+" zł":"")+'</span>'+lines.join("");
   } else {
     const lines=res.per.map((p,b)=>'<span class="bl"><b>'+(b+1)+'</b> · '+(p.winners.length===1 ? nmOf(p.winners[0]) : "remis: "+p.winners.map(nmOf).join(" i "))+' · '+E.describe(p.best)+'</span>');
     const gains=h.order.map((_,i)=>i).filter(i=>res.share[i]>0).sort((a,b)=>res.share[b]-res.share[a]).map(i=>nmOf(i)+(pot>0?" "+sg(deltas[h.order[i]]||0):" "+Math.round(res.share[i]*100)+"%"));
@@ -614,7 +680,7 @@ function renderSeats(animate, light){
     row.appendChild(main);
     const pts=document.createElement("span"); const v=p.points;
     pts.className="pts"+(v>0?" pos":v<0?" neg":"");
-    pts.innerHTML=sg(v)+" pkt"+(L && L.no && (id in L.d) && h && h.street===4 ? "<small>rozdanie "+sg(L.d[id])+"</small>" : "");
+    pts.innerHTML=sg(v)+" zł"+(L && L.no && (id in L.d) && h && h.street===4 ? "<small>rozdanie "+sg(L.d[id])+"</small>" : "");
     row.appendChild(pts);
     if (i>=0){
       const cards=document.createElement("div");
@@ -733,7 +799,7 @@ els.mRename.addEventListener("click", ()=>{ const m=me(); els.nameIn.value=m?m.n
 els.nameForm.addEventListener("submit", e=>{ e.preventDefault(); const n=els.nameIn.value.trim(); if (n){ send({t:"rename", name:n}); if (sess){ sess.name=n; saveJSON(SESS_KEY,sess); } } closeSheet(els.nameSheet); });
 els.mLeave.addEventListener("click", ()=>{
   if (viewer){ viewerCode=null; wantConn=false; try{ ws.close(); }catch(e){} S=null; showEntry(); return; }
-  els.leaveNote.textContent = isHost() ? "Jesteś hostem — prowadzenie stołu przejdzie na innego gracza. Twoje punkty przepadną." : "Stracisz miejsce przy stole i swoje punkty.";
+  els.leaveNote.textContent = isHost() ? "Jesteś hostem — prowadzenie stołu przejdzie na innego gracza. Twój bilans przepadnie." : "Stracisz miejsce przy stole i swój bilans.";
   els.leaveSheet.hidden=false;
 });
 els.leaveNo.addEventListener("click", ()=>{ els.leaveSheet.hidden=true; });
@@ -744,7 +810,7 @@ let rulesRevSeen=null;
 function rulesRows(s){
   return [
     ["mode","Gra", MODES[s.mode].name + (MODES[s.mode].pine ? " · 3 karty, po flopie wyrzucasz jedną" : MODES[s.mode].omaha ? " · 2 z ręki i 3 ze stołu" : "")],
-    ["stake","Stawka", s.stake+" pkt od gracza"],
+    ["stake","Stawka", s.stake+" zł od gracza"],
     ["boards","Boardy", s.boards===1 ? "1 board" : s.boards===2 ? "2 boardy · pula dzielona na 2" : "3 boardy · 2 wygrane = cała pula, remis → dogrywka"],
     ["dice","Kostka po riverze", s.dice ? "tak · 1–5 wymienia kartę, 6 nic" : "bez kostki"],
     ["reveal","Karty graczy", s.reveal ? "odkryte dla wszystkich" : "każdy widzi tylko swoje"]
@@ -812,17 +878,17 @@ function renderScore(){
     tr.children[1].textContent=r.name;
     els.scoreBody.appendChild(tr);
   });
-  els.scoreNote.textContent=(S.hands?"Rozegrane rozdania: "+S.hands+". ":"")+"Suma punktów przy stole wynosi zero (poza graczami, którzy odeszli).";
+  els.scoreNote.textContent=(S.hands?"Rozegrane rozdania: "+S.hands+". ":"")+"Suma bilansów przy stole wynosi zero (poza graczami, którzy odeszli).";
   els.undoBtn.disabled=!S.last;
-  els.undoBtn.textContent=S.last ? "Cofnij punkty z rozdania #"+S.last.no : "Brak rozdania do cofnięcia";
+  els.undoBtn.textContent=S.last ? "Cofnij rozliczenie rozdania #"+S.last.no : "Brak rozdania do cofnięcia";
 }
 els.scoreBtn.addEventListener("click", ()=>{ renderScore(); openSheet(els.scoreSheet); });
 els.undoBtn.addEventListener("click", ()=>send({t:"undo"}));
 let resetArm=0;
 els.resetPts.addEventListener("click", ()=>{
-  if (!resetArm){ els.resetPts.textContent="Na pewno? Kliknij ponownie"; els.resetPts.classList.add("warn"); resetArm=setTimeout(()=>{ resetArm=0; els.resetPts.textContent="Wyzeruj punkty"; els.resetPts.classList.remove("warn"); }, 3500); return; }
-  clearTimeout(resetArm); resetArm=0; els.resetPts.textContent="Wyzeruj punkty"; els.resetPts.classList.remove("warn");
-  send({t:"resetPoints"}); toast("Punkty wyzerowane.");
+  if (!resetArm){ els.resetPts.textContent="Na pewno? Kliknij ponownie"; els.resetPts.classList.add("warn"); resetArm=setTimeout(()=>{ resetArm=0; els.resetPts.textContent="Wyzeruj bilans"; els.resetPts.classList.remove("warn"); }, 3500); return; }
+  clearTimeout(resetArm); resetArm=0; els.resetPts.textContent="Wyzeruj bilans"; els.resetPts.classList.remove("warn");
+  send({t:"resetPoints"}); toast("Bilans wyzerowany.");
 });
 
 // settings (host)
@@ -855,7 +921,7 @@ function renderSettings(){
   els.stakeChips.innerHTML="";
   STAKES.forEach(v=>{
     const b=document.createElement("button"); b.type="button"; b.className="pchip"; b.textContent=v; b.style.setProperty("--c","var("+STAKE_COLORS[v]+")");
-    b.setAttribute("aria-pressed", String(d.stake===v)); b.setAttribute("aria-label", v ? v+" punktów" : "bez punktów");
+    b.setAttribute("aria-pressed", String(d.stake===v)); b.setAttribute("aria-label", v ? v+" zł" : "bez stawki");
     b.addEventListener("click",()=>{ d.stake=v; els.stakeIn.value=""; renderSettings(); });
     els.stakeChips.appendChild(b);
   });

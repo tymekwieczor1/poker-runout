@@ -2,7 +2,7 @@
 
 Stół pokerowy na kilka telefonów. Host zakłada stół i dostaje 4-znakowy kod, a znajomi wpisują kod u siebie albo skanują kod QR. Każdy widzi tylko swoje karty. Board, kostki i wyniki widzą wszyscy. Host gra jak każdy inny gracz, tylko ma dodatkowe przyciski do prowadzenia gry.
 
-Gry: Hold'em, PLO4, PLO5, PLO6, Ananas · 1–3 boardy · kostka po riverze · punkty z cofaniem i zerowaniem · tryb „ekran stołu” dla tabletu albo laptopa na środku.
+Gry: Hold'em, PLO4, PLO5, PLO6, Ananas · 1–3 boardy · kostka po riverze · gra na złotówki: bilans z cofaniem i zerowaniem · tryb „ekran stołu” dla tabletu albo laptopa na środku.
 
 ---
 
@@ -39,7 +39,7 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 
 ### Dobrze wiedzieć
 - **Darmowy plan usypia serwer** po ok. 15 minutach bez ruchu. Pierwsze wejście po przerwie trwa wtedy do minuty. Podczas gry serwer nie zaśnie.
-- **Stoły trzymane są w pamięci serwera.** Gdy serwer się uśpi albo zrestartuje (np. po wrzuceniu nowej wersji), otwarte stoły i punkty znikają. Trwały zapis gier dorobimy później.
+- **Stoły trzymane są w pamięci serwera.** Gdy serwer się uśpi albo zrestartuje (np. po wrzuceniu nowej wersji), otwarte stoły i bilanse znikają. Trwały zapis gier dorobimy później.
 - **Nowa wersja gry:** podmień pliki w repozytorium na GitHubie (Add file, potem Upload files). Render sam zbuduje i uruchomi nową wersję.
 
 ---
@@ -49,11 +49,13 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 1. **Host:** wpisuje imię, wybiera **Załóż stół** i dostaje kod (np. `K7QF`). Przycisk z kodem u góry pokazuje duży kod, kod QR i link do skopiowania.
 2. **Gracze:** wchodzą na stronę, wpisują imię i kod i klikają **Dołącz**. Mogą też zeskanować QR, wtedy kod wpisze się sam.
 3. **Host** ustawia grę (Ustawienia): wersję, stawkę, liczbę boardów, kostkę i to, czy karty są ukryte, czy odkryte dla wszystkich. Potem klika **Rozdaj**, a następnie Flop, Turn, River, Rzuć kostką i Pokaż zwycięzcę. Czerwony przycisk **▶** przeprowadza rozdanie automatycznie (czeka na potwierdzenia graczy).
-4. **Potwierdzenia:** po każdym etapie (rozdanie, flop, turn, river, kostka, wyniki) każdy gracz ma przycisk **Gotowy**. Host może pójść dalej, gdy wszyscy potwierdzą albo gdy minie 30 sekund. Na przycisku hosta widać licznik, np. „Czekamy na graczy 2/4 · 18 s”.
+4. **Potwierdzenia:** po każdym etapie (rozdanie, flop, turn, river, kostka, wyniki) każdy gracz ma przycisk **Gotowy**. Host może pójść dalej, gdy wszyscy potwierdzą albo gdy minie 30 sekund. Przy kartach odkrytych dla wszystkich pokazanie zwycięzcy (i rozdanie dogrywki) nie czeka na potwierdzenia. Na przycisku hosta widać licznik, np. „Czekamy na graczy 2/4 · 18 s”.
 5. **Każdy gracz** widzi u siebie panel „Twoje karty” z układem na każdym boardzie. W Ananasie po flopie każdy dotyka kartę do wyrzucenia u siebie. Host może wyrzucić automatycznie za kogoś, kto zwleka.
 6. **Ekran stołu:** na tablecie albo laptopie wpisz kod i wybierz „To jest ekran stołu”. Pokaże stół i wyniki bez niczyich kart.
 
-**Boardy:** przy 2 boardach pula dzieli się na pół. Przy 3 boardach kto wygra najwięcej boardów (zwykle 2), bierze całą pulę. Gdy jest remis (np. każdy wygrał po jednym), host klika **Dogrywka** i remisujący grają o całą pulę na jednym dodatkowym boardzie „D”.
+**Boardy:** przy 2 boardach pula dzieli się na pół. Przy 3 boardach kto wygra najwięcej boardów (zwykle 2), bierze całą pulę. Gdy jest remis (np. każdy wygrał po jednym), host klika **Dogrywka** i remisujący grają o całą pulę na jednym dodatkowym boardzie „D” (z kostką, jeśli gra jest z kostką).
+
+**Wyniki:** po każdym rozdaniu wszyscy dostają okienko z aktualnym bilansem w złotówkach (wynik rozdania i suma). Przycisk „OK, gotowy” od razu potwierdza gotowość do następnego rozdania.
 
 Inne:
 - Gracze mogą dołączać i odchodzić w trakcie gry. Nowa osoba dostaje karty od następnego rozdania.

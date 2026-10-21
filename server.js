@@ -14,7 +14,7 @@ const E = require("./engine.js");
 
 const PORT = process.env.PORT || 3000;
 const PUB = __dirname;
-const VERSION = "1.7";
+const VERSION = "1.9";
 // only these files are served (everything sits in one folder, so server.js and package.json must stay private)
 const STATIC = new Set(["index.html","app.js","engine.js","style.css","online.css","thrower.jpg"]);
 const MAX_PLAYERS = 9;
@@ -100,6 +100,8 @@ function dealHand(room) {
 function newStage(h) { h.stageAt = Date.now(); h.ready = {}; }
 function readyNeed(room) {
   const h = room.hand; if (!h) return [];
+  // open cards: once the board is complete nobody needs time to look, so showing the winner (or dealing the dogrywka) never waits
+  if (h.reveal && ((h.street === 3 && (!h.wantDice || h.dice)) || (h.street === 4 && h.playoff && !h.playoff.board))) return [];
   return h.order.filter(id => id !== room.hostId && room.players.some(p => p.id === id));
 }
 function readyBlock(room) {
@@ -153,12 +155,26 @@ function showdown(room) {
 function dealPlayoff(h) {
   // a fresh board from the rest of the deck; if it ran short, reshuffle every card that is not in a player's hand
   let pool = h.deck.slice();
-  if (pool.length < 5) {
+  if (pool.length < (h.wantDice ? 6 : 5)) {
     const inHand = new Set(h.order.flatMap(id => h.holes[id]));
     pool = []; for (let c = 0; c < 52; c++) if (!inHand.has(c)) pool.push(c);
     for (let i = pool.length - 1; i > 0; i--) { const j = randInt(i + 1); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   }
   h.playoff.board = pool.slice(-5);
+  if (h.wantDice) {               // the dogrywka board gets its own die too
+    const r = 1 + randInt(6);
+    h.playoff.dice = { roll: r, old: null, neu: null };
+    if (r <= 5) {
+      let neu = pool[pool.length - 6];
+      if (neu == null) {          // tiny pool: pick any card not in a hand and not on this board
+        const inHand = new Set(h.order.flatMap(id => h.holes[id]).concat(h.playoff.board));
+        for (let c = 0; c < 52; c++) if (!inHand.has(c)) { neu = c; break; }
+      }
+      h.playoff.dice.old = h.playoff.board[r - 1];
+      h.playoff.dice.neu = neu;
+      h.playoff.board[r - 1] = neu;
+    }
+  }
 }
 function handKey(h) { return h.id + ":" + h.street + ":" + (h.dice ? 1 : 0) + ":" + (h.playoff && h.playoff.board ? 1 : 0); }
 

@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Rubik:wght@400;500;600;700;800;900&display=swap">
-<link rel="stylesheet" href="style.css?v=1.7">
-<link rel="stylesheet" href="online.css?v=1.7">
+<link rel="stylesheet" href="style.css?v=1.9">
+<link rel="stylesheet" href="online.css?v=1.9">
 </head>
 <body>
 <div class="app" id="app">
@@ -37,12 +37,12 @@
       <label class="mrow"><span>Talia 4-kolorowa</span><input type="checkbox" id="fourc" checked></label>
       <hr>
       <details class="rules"><summary>Zasady</summary>
-        <p>Każdy w rozdaniu wkłada stawkę do puli, zwycięzca bierze pulę; przy remisie pula dzieli się po równo. Suma punktów zawsze wynosi zero.</p>
+        <p>Każdy w rozdaniu wkłada stawkę do puli, zwycięzca bierze pulę; przy remisie pula dzieli się po równo. Gramy na złotówki: suma wygranych i przegranych zawsze wynosi zero.</p>
         <p>Omaha (PLO): zawsze 2 karty z ręki i 3 ze stołu. Ananas: 3 karty, po flopie każdy wyrzuca jedną i gra dalej jak w Hold'em.</p>
-        <p>2 boardy: pula dzieli się na pół. 3 boardy: kto wygra najwięcej boardów (zwykle 2), bierze całą pulę; przy remisie (np. każdy po jednym) remisujący grają dogrywkę na jednym dodatkowym boardzie. Kostka po riverze: osobny rzut dla każdego boardu, 1–5 wymienia kartę o tym numerze, 6 nic nie zmienia.</p>
+        <p>2 boardy: pula dzieli się na pół. 3 boardy: kto wygra najwięcej boardów (zwykle 2), bierze całą pulę; przy remisie (np. każdy po jednym) remisujący grają dogrywkę na jednym dodatkowym boardzie (z kostką, jeśli gra jest z kostką). Kostka po riverze: osobny rzut dla każdego boardu, 1–5 wymienia kartę o tym numerze, 6 nic nie zmienia.</p>
         <p>Karty widzi tylko właściciel. Wszyscy zobaczą je dopiero na showdownie (albo od razu, gdy host ustawi karty odkryte).</p>
       </details>
-      <p class="vtag">Wersja 1.7</p>
+      <p class="vtag">Wersja 1.9</p>
     </div>
   </header>
 
@@ -119,11 +119,11 @@
 <div class="sheet" id="scoreSheet" role="dialog" aria-modal="true" aria-label="Wyniki" hidden>
   <div class="sheet-box">
     <div class="sheet-head"><h2>Wyniki</h2><button type="button" class="iconbtn" data-close aria-label="Zamknij">×</button></div>
-    <div style="overflow-x:auto"><table class="scoretbl"><thead><tr><th>#</th><th>Gracz</th><th>Ostatnie</th><th>Wygrane</th><th>Punkty</th></tr></thead><tbody id="scoreBody"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="scoretbl"><thead><tr><th>#</th><th>Gracz</th><th>Ostatnie</th><th>Wygrane</th><th>Bilans (zł)</th></tr></thead><tbody id="scoreBody"></tbody></table></div>
     <p class="hint" id="scoreNote"></p>
     <div class="sheet-actions host-only">
       <button type="button" class="btn" id="undoBtn">Cofnij ostatnie rozdanie</button>
-      <button type="button" class="btn" id="resetPts">Wyzeruj punkty</button>
+      <button type="button" class="btn" id="resetPts">Wyzeruj bilans</button>
     </div>
   </div>
 </div>
@@ -138,7 +138,7 @@
       <p class="vhint" id="vHint"></p>
     </section>
     <section class="sblock">
-      <div class="shead"><h3>Stawka</h3><span class="count">pkt od gracza</span></div>
+      <div class="shead"><h3>Stawka</h3><span class="count">zł od gracza</span></div>
       <div class="pchips" id="stakeChips"></div>
       <label class="ownstake" for="stakeIn">Własna stawka <input type="number" id="stakeIn" min="0" max="100000" step="1" inputmode="numeric" placeholder="np. 15"></label>
     </section>
@@ -170,7 +170,7 @@
 <div class="peek" id="leaveSheet" role="dialog" aria-modal="true" aria-label="Opuść stół" hidden>
   <div class="peek-box">
     <h2>Opuścić stół?</h2>
-    <p class="peek-note" id="leaveNote">Twoje punkty zostaną przy stole, ale stracisz miejsce.</p>
+    <p class="peek-note" id="leaveNote">Twój bilans zostanie przy stole, ale stracisz miejsce.</p>
     <button type="button" class="btn primary" id="leaveYes">Opuść stół</button>
     <button type="button" class="linkbtn" id="leaveNo">Zostaję</button>
   </div>
@@ -179,6 +179,15 @@
 <div class="throw" id="throw" aria-hidden="true" hidden>
   <p class="skiphint">Dotknij, żeby pominąć</p>
   <div class="thrower" id="throwFig"><img alt="" src="thrower.jpg"><div class="bubble" id="throwBubble">Rzucam!</div></div>
+</div>
+<div class="rulespop" id="resPop" role="dialog" aria-modal="true" aria-labelledby="resTitle" hidden>
+  <div class="rules-box">
+    <p class="rules-eyebrow" id="resEyebrow">Po rozdaniu</p>
+    <h2 id="resTitle">Wyniki</h2>
+    <div class="res-head"><span>w rozdaniu</span><span>razem</span></div>
+    <ol class="res-list" id="resList"></ol>
+    <button type="button" class="btn primary big" id="resOk">OK</button>
+  </div>
 </div>
 <div class="rulespop" id="rulesPop" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
   <div class="rules-box">
@@ -192,7 +201,7 @@
 <div class="netbar" id="netBar" hidden>Łączenie ze stołem…</div>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="engine.js?v=1.7"></script>
-<script src="app.js?v=1.7"></script>
+<script src="engine.js?v=1.9"></script>
+<script src="app.js?v=1.9"></script>
 </body>
 </html>
