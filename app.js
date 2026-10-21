@@ -35,7 +35,7 @@ const els = {};
  "controls","primary","autoBtn","autoDiscard","settingsBtn","waitLine","mine","coverBtn","mineCards","mineMade","mineAct","discardBtn","sitNote","seats",
  "shareSheet","bigCode","qrImg","shareLink","copyLink","scoreSheet","scoreBody","scoreNote","undoBtn","resetPts",
  "setSheet","setNote","variants","vHint","stakeChips","stakeIn","boardsChoice","diceChoice","revealChoice","setCount","setPlayers","setSave",
- "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast","resPop","resEyebrow","resList","resOk","rulesPop","rulesList","rulesNote","rulesOk"
+ "readyBar","readyBtn","readyInfo","nameSheet","nameForm","nameIn","leaveSheet","leaveNote","leaveYes","leaveNo","throw","throwFig","throwBubble","netBar","toast","chatBtn","chatBadge","chatPanel","chatList","chatForm","chatIn","chatClose","chatEmpty","resPop","resEyebrow","resList","resOk","rulesPop","rulesList","rulesNote","rulesOk"
 ].forEach(id => els[id] = $(id));
 
 let toastTimer=0;
@@ -104,6 +104,8 @@ function onMsg(m){
   }
   if (m.t==="watching"){ viewer=true; document.body.classList.add("viewer"); showGame(); return; }
   if (m.t==="state"){ onState(m); return; }
+  if (m.t==="chatlog"){ chatSet(m.list||[]); return; }
+  if (m.t==="chat"){ chatAdd(m.m, true); return; }
   if (m.t==="error"){
     if (m.code==="no_room"){ if (sess && !S){ delKey(SESS_KEY); sess=null; } wantConn=false; try{ ws.close(); }catch(e){} showEntry(); }
     toast(m.msg||"Błąd");
@@ -113,13 +115,13 @@ function onMsg(m){
   if (m.t==="left"){ leaveLocal(); return; }
   if (m.t==="replaced"){ toast("Ten stół jest otwarty na innym urządzeniu lub karcie."); wantConn=false; return; }
 }
-function leaveLocal(){ delKey(SESS_KEY); sess=null; S=null; wantConn=false; try{ ws.close(); }catch(e){} showEntry(); }
+function leaveLocal(){ chatSet([]); els.chatPanel.hidden=true; delKey(SESS_KEY); sess=null; S=null; wantConn=false; try{ ws.close(); }catch(e){} showEntry(); }
 
 /* ---------- screens ---------- */
 function showEntry(){
   document.body.classList.remove("ingame");
   els.entry.hidden=false; els.game.hidden=true;
-  els.codeBtn.hidden=true; els.scoreBtn.hidden=true; els.menuBtn.hidden=true;
+  els.codeBtn.hidden=true; els.scoreBtn.hidden=true; els.menuBtn.hidden=true; els.chatBtn.hidden=true; els.chatPanel.hidden=true;
   document.body.classList.remove("viewer");
   els.eResume.hidden=!(sess && sess.token);
   if (sess) els.eResume.textContent="Wróć do stołu "+sess.code;
@@ -184,7 +186,7 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="1.9";
+const APP_VER="2.0";
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -495,6 +497,8 @@ function renderChrome(){
   els.mAbort.hidden=!isHost() || !S.hand || (S.hand.street===4 && !poPending(S.hand));
   const m=me(); els.mSit.textContent = m && m.sitOut ? "Wracam do gry" : "Pauzuję (nie rozdawaj mi)";
   els.scoreBtn.hidden=false;
+  els.chatBtn.hidden=false;
+  els.chatForm.hidden=viewer;
 }
 function quickRefresh(){ renderSeats(false, true); renderControls(); if (!els.scoreSheet.hidden) renderScore(); }
 function setMeta(){
@@ -503,6 +507,49 @@ function setMeta(){
   els.handNo.textContent = h ? "#"+h.no+" · pula "+fmt(h.stake*h.order.length)+" zł" : "";
   els.modeName.textContent = MODE_SHORT[mode()] + (h && h.boards.length>1 ? " ×"+h.boards.length : "");
 }
+/* ---------- table chat ---------- */
+let chatMsgs=[], chatUnread=0;
+function hhmm(t){ const d=new Date(t); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+function chatSet(list){ chatMsgs=list.slice(); chatUnread=0; renderChat(); }
+function chatAdd(m, live){
+  if (!m || chatMsgs.some(x=>x.id===m.id)) return;
+  chatMsgs.push(m); if (chatMsgs.length>120) chatMsgs.shift();
+  const mine = m.from===myId;
+  if (live && !mine && els.chatPanel.hidden){ chatUnread++; toast("💬 "+m.name+": "+m.text); }
+  renderChat();
+}
+function renderChat(){
+  els.chatBadge.hidden=!chatUnread; els.chatBadge.textContent=chatUnread>9?"9+":chatUnread;
+  els.chatBtn.classList.toggle("unread", chatUnread>0);
+  if (els.chatPanel.hidden) return;
+  const atBottom = els.chatList.scrollHeight - els.chatList.scrollTop - els.chatList.clientHeight < 40;
+  els.chatList.innerHTML="";
+  els.chatEmpty.hidden = chatMsgs.length>0;
+  chatMsgs.forEach((m,i)=>{
+    const mine=m.from===myId, prev=chatMsgs[i-1];
+    const li=document.createElement("li"); li.className="cmsg"+(mine?" me":"")+(m.from===(S&&S.hostId)?" host":"");
+    if (!mine && (!prev || prev.from!==m.from)){ const n=document.createElement("span"); n.className="cname"; n.textContent=m.name+(m.from===(S&&S.hostId)?" ♛":""); li.appendChild(n); }
+    const b=document.createElement("span"); b.className="cbub"; b.textContent=m.text;
+    const t=document.createElement("time"); t.textContent=hhmm(m.at); b.appendChild(t);
+    li.appendChild(b); els.chatList.appendChild(li);
+  });
+  if (atBottom || els.chatList.dataset.fresh) { els.chatList.scrollTop=els.chatList.scrollHeight; delete els.chatList.dataset.fresh; }
+}
+function openChat(){
+  els.chatPanel.hidden=false; chatUnread=0; els.chatList.dataset.fresh="1"; renderChat();
+  els.chatBtn.setAttribute("aria-expanded","true");
+  if (!viewer && matchMedia("(pointer:fine)").matches) els.chatIn.focus();
+}
+function closeChat(){ els.chatPanel.hidden=true; els.chatBtn.setAttribute("aria-expanded","false"); }
+els.chatBtn.addEventListener("click", ()=>{ els.chatPanel.hidden ? openChat() : closeChat(); });
+els.chatClose.addEventListener("click", closeChat);
+els.chatForm.addEventListener("submit", e=>{
+  e.preventDefault();
+  const text=els.chatIn.value.trim(); if (!text) return;
+  send({t:"chat", text}); els.chatIn.value=""; els.chatIn.focus();
+});
+document.querySelectorAll("[data-quick]").forEach(b=>b.addEventListener("click", ()=>{ send({t:"chat", text:b.dataset.quick}); }));
+
 /* ---------- end-of-hand standings pop-up ---------- */
 let resShownFor=null;
 function maybeResults(){
@@ -847,7 +894,7 @@ function closeSheet(el){ el.hidden=true; }
 document.querySelectorAll(".sheet").forEach(sh=>{
   sh.addEventListener("click", e=>{ if (e.target===sh || e.target.closest("[data-close]")) closeSheet(sh); });
 });
-document.addEventListener("keydown", e=>{ if (e.key==="Escape"){ document.querySelectorAll(".sheet").forEach(closeSheet); closeMenu(); } });
+document.addEventListener("keydown", e=>{ if (e.key==="Escape"){ document.querySelectorAll(".sheet").forEach(closeSheet); closeMenu(); closeChat(); } });
 
 // share
 function openShare(){

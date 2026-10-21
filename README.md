@@ -57,6 +57,8 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 
 **Wyniki:** po każdym rozdaniu wszyscy dostają okienko z aktualnym bilansem w złotówkach (wynik rozdania i suma). Przycisk „OK, gotowy” od razu potwierdza gotowość do następnego rozdania.
 
+**Czat:** okrągła ikonka 💬 w lewym górnym rogu jest zawsze na miejscu, także po przewinięciu strony. Gracze piszą do całego stołu (np. żeby poprosić hosta o zmianę zasad). Nowa wiadomość pokazuje się na dole ekranu, a na ikonce pojawia się licznik nieprzeczytanych. Ekran stołu wyświetla czat, ale nie może pisać.
+
 Inne:
 - Gracze mogą dołączać i odchodzić w trakcie gry. Nowa osoba dostaje karty od następnego rozdania.
 - „Pauzuję” w menu sprawia, że gracz nie dostaje kart, aż wróci.

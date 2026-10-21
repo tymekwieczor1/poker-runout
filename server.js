@@ -14,7 +14,7 @@ const E = require("./engine.js");
 
 const PORT = process.env.PORT || 3000;
 const PUB = __dirname;
-const VERSION = "1.9";
+const VERSION = "2.0";
 // only these files are served (everything sits in one folder, so server.js and package.json must stay private)
 const STATIC = new Set(["index.html","app.js","engine.js","style.css","online.css","thrower.jpg"]);
 const MAX_PLAYERS = 9;
@@ -51,7 +51,7 @@ function makeRoom(hostName) {
     code, created: Date.now(), touched: Date.now(), hostId: null,
     players: [], viewers: new Set(),
     settings: { mode: "nlhe", stake: 10, boards: 1, dice: false, reveal: false, speed: "norm" },
-    points: {}, wins: {}, last: null, hands: 0, hand: null, seq: 0, log: []
+    points: {}, wins: {}, last: null, hands: 0, hand: null, seq: 0, log: [], chat: []
   };
   rooms.set(code, room);
   const p = addPlayer(room, hostName);
@@ -273,6 +273,7 @@ function handle(ws, msg) {
       room.viewers.add(ws);
       send(ws, { t: "watching", code });
       send(ws, viewFor(room, null));
+      send(ws, { t: "chatlog", list: room.chat.slice(-60) });
       return;
     }
     let p = msg.token ? room.players.find(x => x.token === msg.token) : null;
@@ -282,6 +283,7 @@ function handle(ws, msg) {
     }
     attach(ws, room, p);
     send(ws, { t: "joined", code: room.code, playerId: p.id, token: p.token });
+    send(ws, { t: "chatlog", list: room.chat.slice(-60) });
     broadcast(room);
     return;
   }
@@ -297,6 +299,19 @@ function handle(ws, msg) {
   const h = room.hand;
 
   switch (t) {
+    case "chat": {                 // table chat: everyone at the table (and the table screen) gets it
+      const text = String(msg.text || "").replace(/\s+/g, " ").trim().slice(0, 240);
+      if (!text) return;
+      const now = Date.now();
+      if (me.lastChat && now - me.lastChat < 500) return;
+      me.lastChat = now;
+      const m = { id: rid(6), from: me.id, name: me.name, text, at: now };
+      room.chat.push(m); if (room.chat.length > 120) room.chat.splice(0, room.chat.length - 120);
+      room.touched = now;
+      room.players.forEach(p => { if (p.ws) send(p.ws, { t: "chat", m }); });
+      room.viewers.forEach(v => send(v, { t: "chat", m }));
+      return;
+    }
     case "rename": { const n = cleanName(msg.name); if (n) me.name = n; break; }
     case "sitOut": me.sitOut = !!msg.value; break;
     case "leave": {
