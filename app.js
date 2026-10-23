@@ -8,7 +8,8 @@ const SUIT_SYM = ["♠","♥","♦","♣"], SUIT_CLS = ["s-s","s-h","s-d","s-c"]
 const STREETS = ["Preflop","Flop","Turn","River","Showdown"];
 const STAKES = [5,10,20,50,100];
 const MODE_SHORT = { nlhe:"Hold'em", plo4:"PLO4", plo5:"PLO5", plo6:"PLO6", pine:"Ananas" };
-const SPEED = { slow:{gap:110, flip:320, board:320, step:2200}, norm:{gap:65, flip:220, board:230, step:1400}, fast:{gap:30, flip:120, board:120, step:700} };
+// dcard/dflip/dpause: board cards dealt one by one like a real dealer (flop: board 1 card by card, then board 2, …)
+const SPEED = { slow:{gap:110, flip:320, board:320, step:2200, dcard:910, dflip:532, dpause:630}, norm:{gap:65, flip:220, board:230, step:1400, dcard:650, dflip:380, dpause:450}, fast:{gap:30, flip:120, board:120, step:700, dcard:325, dflip:190, dpause:225} };
 const THROW = { slow:{th:2300, hold:2600}, norm:{th:1800, hold:2100}, fast:{th:1200, hold:1400} };
 const ORD = ["pierwsza","druga","trzecia","czwarta","piąta"];
 const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -51,14 +52,14 @@ function randInt(n){ const r=new Uint32Array(1); crypto.getRandomValues(r); retu
 
 /* ---------- cards ---------- */
 function cardLabel(c){ return (c>>2===8?"10":RANKS[c>>2])+" "+SUIT_PL[c&3]; }
-function makeCard(c, up, delay){
+function makeCard(c, up, delay, flipAt){
   const el=document.createElement("div");
   el.className="card"; el.dataset.c=c; el.setAttribute("role","img"); el.setAttribute("aria-label", up?cardLabel(c):"zakryta karta");
   const face = c>=0 ? '<div class="face front '+SUIT_CLS[c&3]+'"><span class="r">'+rn(c>>2)+'</span><span class="s">'+SUIT_SYM[c&3]+'</span></div>' : '<div class="face front"></div>';
   el.innerHTML='<div class="inner">'+face+'<div class="face back"></div></div>';
   if (delay!=null){
     el.classList.add("down","deal"); el.style.setProperty("--d", delay+"ms");
-    if (up) later(()=>{ el.classList.remove("down"); el.setAttribute("aria-label",cardLabel(c)); }, delay+sp().flip+120);
+    if (up) later(()=>{ el.classList.remove("down"); el.setAttribute("aria-label",cardLabel(c)); }, delay+(flipAt!=null?flipAt:sp().flip)+120);
   } else if (!up) el.classList.add("down");
   return el;
 }
@@ -186,7 +187,7 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="2.0";
+const APP_VER="2.2";
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -256,7 +257,7 @@ function advanceStreet(h){
   renderBoard(h, BOARD_N[h.street], from);
   refresh();
   const added=BOARD_N[h.street]-from;
-  const wait=Math.max(0,added-1)*sp().board + (h.boards.length-1)*90 + sp().flip + 520;
+  const wait=added>0 ? boardDealTime(h.boards.length, added) : sp().flip + 520;
   if (diceToShow){ later(()=>animateDice(S.hand), wait); return; }
   done(wait);
 }
@@ -277,7 +278,7 @@ function animatePlayoff(h){
   renderBoard(h, 5, null, true); diceStatic(h);
   setMeta(); renderSeats(false); renderControls();
   const finish=ms=>{ later(()=>{ poAnim=false; }, ms-20); done(ms); };
-  const dealT=4*sp().board + sp().flip + 500;
+  const dealT=4*sp().dcard + 250 + sp().dflip + 620;
   if (!pd){ finish(dealT+400); return; }
   later(()=>{
     els.diceRow.hidden=false; els.diceText.textContent="Dogrywka: leci kostka…";
@@ -302,6 +303,8 @@ function animatePlayoff(h){
 function dicePos(d,b){ return d && d.rolls[b]<=5 ? d.rolls[b]-1 : -1; }
 function boardCardAt(h,b,i){ return (h.dice && !shown.diceDone && dicePos(h.dice,b)===i) ? h.dice.old[b] : h.boards[b][i]; }
 function boardsNow(h){ return h.boards.map((bd,b)=>bd.slice(0,BOARD_N[h.street]).map((c,i)=>boardCardAt(h,b,i))); }
+function boardDelay(b, k, added){ const s=sp(); return b*(added*s.dcard + (added>1 ? s.dpause : 0)) + k*s.dcard; }
+function boardDealTime(nb, added){ return boardDelay(nb-1, added-1, added) + sp().dflip + 620; }
 function renderBoard(h, count, animFrom, poAnim){
   els.board.innerHTML="";
   const nb = h ? h.boards.length : (S ? S.settings.boards : 1);
@@ -311,7 +314,7 @@ function renderBoard(h, count, animFrom, poAnim){
     if (nb>1){ const l=document.createElement("span"); l.className="blabel"; l.textContent=b+1; row.appendChild(l); }
     for (let i=0;i<5;i++){
       let el;
-      if (h && i<count && h.boards[b][i]!=null) el=makeCard(boardCardAt(h,b,i), true, (animFrom!=null && i>=animFrom) ? (i-animFrom)*sp().board + b*90 : null);
+      if (h && i<count && h.boards[b][i]!=null) el=makeCard(boardCardAt(h,b,i), true, (animFrom!=null && i>=animFrom) ? boardDelay(b, i-animFrom, count-animFrom) : null, sp().dflip);
       else el=slot();
       el.dataset.b=b; el.dataset.i=i;
       if (i===3||i===4) el.classList.add("gap");
@@ -327,7 +330,7 @@ function renderBoard(h, count, animFrom, poAnim){
     const pd=h.playoff.dice, dp = pd && pd.roll<=5 ? pd.roll-1 : -1;
     h.playoff.board.forEach((c,i)=>{
       if (i===dp && !shown.poDice) c=pd.old;
-      const el=makeCard(c, true, poAnim ? i*sp().board + 250 : null);
+      const el=makeCard(c, true, poAnim ? i*sp().dcard + 250 : null, sp().dflip);
       if (i===dp && shown.poDice) el.classList.add("swapped");
       el.dataset.b="po"; el.dataset.i=i; if (i===3||i===4) el.classList.add("gap");
       row.appendChild(el);

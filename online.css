@@ -163,12 +163,12 @@ body.ingame .top .brand .suitmark{font-size:1.6rem}
 .res-head{display:flex;justify-content:flex-end;gap:22px;padding:0 14px;margin:-4px 0 -6px;font-size:.62rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
 
 /* table chat: pinned button top-left + panel */
-.chatfab{position:fixed;z-index:26;top:calc(12px + env(safe-area-inset-top, 0px));left:max(12px, env(safe-area-inset-left, 0px));width:46px;height:46px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--ink);background:var(--brass);border:2px solid rgba(0,0,0,.25);box-shadow:0 6px 18px rgba(0,0,0,.55)}
+.chatfab{position:fixed;z-index:26;top:calc(12px + env(safe-area-inset-top, 0px));left:max(12px, env(safe-area-inset-left, 0px));width:92px;height:92px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--ink);background:var(--brass);border:2px solid rgba(0,0,0,.25);box-shadow:0 6px 18px rgba(0,0,0,.55)}
 .chatfab:active{transform:scale(.94)}
 .chatfab.unread{animation:chatPulse 1.6s ease-in-out infinite}
-.chatbadge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#ff3347;color:#fff;font-size:.72rem;font-weight:800;display:grid;place-items:center;border:2px solid var(--room)}
+.chatbadge{position:absolute;top:0;right:0;min-width:28px;height:28px;padding:0 7px;border-radius:999px;background:#ff3347;color:#fff;font-size:.95rem;font-weight:800;display:grid;place-items:center;border:2px solid var(--room)}
 @keyframes chatPulse{50%{box-shadow:0 0 0 7px rgba(255,200,50,.25),0 6px 18px rgba(0,0,0,.55)}}
-.chatpanel{position:fixed;z-index:27;top:calc(66px + env(safe-area-inset-top, 0px));left:max(10px, env(safe-area-inset-left, 0px));width:min(calc(100vw - 20px),400px);height:min(52vh,460px);display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--brass-dim);border-radius:16px;padding:10px 12px 12px;box-shadow:0 18px 50px rgba(0,0,0,.65);animation:rpPop .22s ease-out}
+.chatpanel{position:fixed;z-index:27;top:calc(112px + env(safe-area-inset-top, 0px));left:max(10px, env(safe-area-inset-left, 0px));width:min(calc(100vw - 20px),400px);height:min(50vh,460px);display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--brass-dim);border-radius:16px;padding:10px 12px 12px;box-shadow:0 18px 50px rgba(0,0,0,.65);animation:rpPop .22s ease-out}
 .chathead{display:flex;align-items:center;justify-content:space-between}
 .chathead h2{margin:0;font-family:var(--display);font-weight:800;font-size:1.2rem;text-transform:uppercase;letter-spacing:.03em;color:var(--brass)}
 .chatempty{margin:0;color:var(--mute);font-size:.88rem}
@@ -189,4 +189,7 @@ body.ingame .top .brand .suitmark{font-size:1.6rem}
 .chatform .btn{padding:0 14px}
 body.viewer .chatquick{display:none}
 /* keep the header clear of the pinned chat button */
-body.ingame .top{padding-left:58px}
+body.ingame .top{padding-left:100px;min-height:96px;align-items:flex-start;box-sizing:border-box}
+@media (max-width:400px){ body.ingame .codechip .cl{display:none} }
+.chatfab svg{width:46px;height:46px}
+@keyframes chatPulse{50%{box-shadow:0 0 0 10px rgba(255,200,50,.25),0 6px 18px rgba(0,0,0,.55)}}
