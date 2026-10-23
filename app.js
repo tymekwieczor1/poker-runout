@@ -21,16 +21,58 @@ const PAUSE_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="
 
 /* ---------- storage ---------- */
 const PREF_KEY = "pro-prefs", SESS_KEY = "pro-session";
-const prefs = { speed:"norm", fourColor:true };
+const prefs = { speed:"norm", fourColor:true, sound:true };
 function loadJSON(k){ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } }
 function saveJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 function delKey(k){ try{ localStorage.removeItem(k); }catch(e){} }
-(function(){ const p=loadJSON(PREF_KEY); if (p){ if (SPEED[p.speed]) prefs.speed=p.speed; prefs.fourColor=p.fourColor!==false; } })();
+(function(){ const p=loadJSON(PREF_KEY); if (p){ if (SPEED[p.speed]) prefs.speed=p.speed; prefs.fourColor=p.fourColor!==false; prefs.sound=p.sound!==false; } })();
 let sess = loadJSON(SESS_KEY);   // {code, token, name}
+
+/* ---------- sound (Web Audio, no files; fixed volume, on/off in the menu) ---------- */
+const SND=(function(){
+  let AC=null, master=null, noiseBuf=null;
+  const VOL=0.8*0.8*0.9;
+  function unlock(){
+    try{
+      if (!AC){
+        const Ctx=window.AudioContext||window.webkitAudioContext; if (!Ctx) return;
+        AC=new Ctx(); master=AC.createGain(); master.gain.value=VOL; master.connect(AC.destination);
+        noiseBuf=AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+        const d=noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+      }
+      if (AC.state==="suspended") AC.resume();
+    }catch(e){}
+  }
+  ["pointerdown","touchstart","keydown"].forEach(ev=>document.addEventListener(ev, unlock, {capture:true, passive:true}));
+  const ok=()=>AC && AC.state==="running" && prefs.sound && !document.hidden;
+  function env(g,t,a,peak,dec){ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(peak,t+a); g.gain.exponentialRampToValueAtTime(0.0001,t+a+dec); }
+  function noise(t,dur,type,f0,f1,q,peak,a){ const s=AC.createBufferSource(); s.buffer=noiseBuf; const f=AC.createBiquadFilter(); f.type=type; f.frequency.setValueAtTime(f0,t); if (f1) f.frequency.exponentialRampToValueAtTime(f1,t+dur); f.Q.value=q||1; const g=AC.createGain(); env(g,t,a||0.004,peak,dur); s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()*0.5); s.stop(t+dur+0.05); }
+  function tone(t,freq,dur,type,peak,a,slideTo){ const o=AC.createOscillator(); o.type=type||"sine"; o.frequency.setValueAtTime(freq,t); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo,t+dur); const g=AC.createGain(); env(g,t,a||0.005,peak,dur); o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.05); }
+  const S={
+    deal(t){ noise(t,0.16,"bandpass",650,1700,0.6,0.26,0.035); noise(t+0.13,0.07,"lowpass",450,null,0.6,0.22,0.01); },
+    flip(t){ noise(t,0.045,"lowpass",1300,700,0.7,0.2,0.008); tone(t,420,0.05,"sine",0.05,0.006); },
+    swap(t){ noise(t,0.22,"bandpass",600,2600,0.8,0.35,0.03); },
+    rattle(t,dur){ let x=0; while (x<dur){ const gap=0.03+Math.random()*0.06*(1+x/dur); noise(t+x,0.018,"bandpass",2400+Math.random()*2400,null,3,0.25+Math.random()*0.35,0.001); x+=gap; } },
+    land(t){ tone(t,190,0.12,"sine",0.55,0.002,85); noise(t,0.06,"lowpass",1200,null,0.8,0.45,0.002); for (let i=1;i<4;i++) noise(t+i*0.07+Math.random()*0.03,0.02,"bandpass",3000,null,3,0.2/i,0.001); },
+    chips(t){ for (let i=0;i<16;i++){ const tt=t+Math.random()*0.45; tone(tt,3200+Math.random()*2200,0.035,"sine",0.12,0.001); noise(tt,0.02,"highpass",4000,null,1,0.18,0.001); } },
+    fanfare(t){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>{ tone(t+i*0.11,f,i===3?0.6:0.16,"triangle",0.22,0.008); tone(t+i*0.11,f*2,i===3?0.5:0.12,"sine",0.05,0.008); }); },
+    roll(t,dur){ const n=Math.floor(dur/0.035); for (let i=0;i<n;i++) noise(t+i*0.035,0.04,"bandpass",320,null,1.2,0.12+0.3*(i/n),0.002); noise(t+dur,0.35,"lowpass",900,null,0.7,0.6,0.003); tone(t+dur,110,0.3,"sine",0.5,0.003,60); },
+    tock(t){ tone(t,880,0.07,"sine",0.3,0.002); tone(t,1320,0.05,"sine",0.12,0.002); },
+    tick(t,last){ tone(t,last?1100:2100,0.04,"square",0.07,0.001); noise(t,0.015,"highpass",3500,null,1,0.15,0.001); },
+    pling(t){ tone(t,1318.5,0.18,"sine",0.25,0.004); tone(t,2637,0.12,"sine",0.05,0.004); tone(t+0.12,1760,0.3,"sine",0.25,0.004); tone(t+0.12,3520,0.2,"sine",0.05,0.004); },
+    chime(t){ [784,987.77,1174.66].forEach((f,i)=>tone(t+i*0.09,f,0.45,"sine",0.16,0.006)); },
+    swoosh(t){ noise(t,0.3,"bandpass",400,2400,0.7,0.3,0.06); }
+  };
+  // play(name, ...args): plays now; ignored while muted, hidden or before the first tap
+  function play(name, a1){ if (!ok()) return; try{ S[name](AC.currentTime, a1); }catch(e){} }
+  return {play, unlock};
+})();
+// sound tied to an animation step: cancelled together with the animation when a new state arrives
+function sndAt(ms, name, a1){ later(()=>SND.play(name, a1), Math.max(0, ms)); }
 
 /* ---------- elements ---------- */
 const els = {};
-["app","codeBtn","codeTxt","scoreBtn","menuBtn","menu","mSettings","mAbort","mRename","mSit","mLeave","speed","fourc",
+["app","codeBtn","codeTxt","scoreBtn","menuBtn","menu","mSettings","mAbort","mRename","mSit","mLeave","speed","fourc","sndOn",
  "entry","homeFan","eResume","eName","tabJoin","tabCreate","paneJoin","paneCreate","eCode","eJoin","eWatch","eCreate",
  "game","lobbyBar","lobbyTitle","lobbySub","lobbyShare","tableSec","felt","street","handNo","modeName","board","diceRow","diceSet","diceText","banner",
  "controls","primary","autoBtn","autoDiscard","settingsBtn","waitLine","mine","coverBtn","mineCards","mineMade","mineAct","discardBtn","sitNote","seats",
@@ -187,7 +229,17 @@ function me(){ return S && myId ? S.players.find(p=>p.id===myId) : null; }
 function isHost(){ return !!(S && S.you && S.you.host); }
 function pname(id){ const p=S && S.players.find(x=>x.id===id); return p ? p.name : "Gracz"; }
 
-const APP_VER="2.2";
+const APP_VER="2.3";
+let readySeen={key:null, ids:[]}, tickSeen={key:null, sec:0};
+function readySounds(st){
+  const h=st.hand; if (!h || !h.ready) return;
+  const key=h.id+":"+h.street+":"+(h.dice?1:0)+":"+(h.playoff&&h.playoff.board?1:0);
+  if (readySeen.key===key){
+    const fresh=h.ready.filter(id=>!readySeen.ids.includes(id) && id!==(st.you&&st.you.id));
+    if (fresh.length) SND.play("tock");
+  }
+  readySeen={key, ids:h.ready.slice()};
+}
 function onState(st){
   // a phone still running an older app.js than the server: reload once to pick up the new files
   if (st.ver && st.ver!==APP_VER){
@@ -195,6 +247,7 @@ function onState(st){
     if (tried!==st.ver){ try{ sessionStorage.setItem("prVerReload", st.ver); }catch(e){} location.reload(); return; }
   }
   if (st.hand) readyDeadline = Date.now() + (st.hand.readyLeft||0);
+  readySounds(st);
   const prevSettings = S && S.settings;
   S=st; myId=st.you && st.you.id || null; viewer=!!(st.you && st.you.viewer);
   checkRules(prevSettings);
@@ -232,7 +285,8 @@ function resetTable(){
 function startHand(h){
   tk++; poAnim=false; eqCache=null;
   els.resPop.hidden=true;
-  if (h.street===4) resShownFor=h.id;   // joined/reloaded on a finished hand: no pop-up sel=null; covered=false;
+  sel=null; covered=false;
+  if (h.street===4) resShownFor=h.id;   // joined/reloaded on a finished hand: no pop-up
   const animate = h.street===0;
   shown={handId:h.id, street:h.street, diceDone:!!h.dice, dealing:animate, po:poDealt(h), poDice:true};
   els.banner.hidden=true; setMeta(); renderControls();
@@ -243,6 +297,7 @@ function startHand(h){
   renderSeats(animate);
   if (h.street===4){ busy=false; shown.dealing=false; refresh(); return; }
   const n=h.order.length, hole=MODES[h.mode].hole;
+  if (animate) for (let k=0;k<hole*n;k++) sndAt(k*sp().gap, "deal");
   done(animate ? hole*n*sp().gap + sp().flip + 450 : 50);
 }
 function advanceStreet(h){
@@ -266,19 +321,28 @@ function showdownRender(h){
   shown.po = poDealt(h); shown.poDice = true;
   renderBoard(h, 5, null); diceStatic(h);
   refresh();
+  resultSounds(h);
   done(500);
 }
 
 let poAnim=false;
+const PO_START=1150;   // the D board waits for the drum roll
+function resultSounds(h){
+  const res=resultLocal(h); if (!res || res.pending) return;
+  SND.play("chips");
+  const i=myId ? h.order.indexOf(myId) : -1;
+  if (i>=0 && res.share[i]>0) later(()=>SND.play("fanfare"), 350);
+}
 function animatePlayoff(h){
   tk++; busy=true; shown.po=true; poAnim=true;
+  SND.play("roll", 0.9);
   const pd=h.playoff.dice, t0=tk;
   shown.poDice=!pd;
   els.banner.hidden=true;
   renderBoard(h, 5, null, true); diceStatic(h);
   setMeta(); renderSeats(false); renderControls();
-  const finish=ms=>{ later(()=>{ poAnim=false; }, ms-20); done(ms); };
-  const dealT=4*sp().dcard + 250 + sp().dflip + 620;
+  const finish=ms=>{ later(()=>{ poAnim=false; resultSounds(S.hand); }, ms-20); done(ms); };
+  const dealT=4*sp().dcard + PO_START + sp().dflip + 620;
   if (!pd){ finish(dealT+400); return; }
   later(()=>{
     els.diceRow.hidden=false; els.diceText.textContent="Dogrywka: leci kostka…";
@@ -288,7 +352,9 @@ function animatePlayoff(h){
       if (pd.roll>5){ diceStatic(h); finish(500); return; }
       const old=els.board.querySelector('.card[data-b="po"][data-i="'+(pd.roll-1)+'"]');
       if (old) old.classList.add("down");
+      SND.play("swap");
       later(()=>{
+        sndAt(0,"deal"); sndAt(sp().flip+120,"flip");
         const el=makeCard(pd.neu, true, 0); el.classList.add("swapped"); if (pd.roll-1>=3) el.classList.add("gap");
         el.dataset.b="po"; el.dataset.i=pd.roll-1;
         if (old && old.parentNode) old.parentNode.replaceChild(el, old);
@@ -314,7 +380,9 @@ function renderBoard(h, count, animFrom, poAnim){
     if (nb>1){ const l=document.createElement("span"); l.className="blabel"; l.textContent=b+1; row.appendChild(l); }
     for (let i=0;i<5;i++){
       let el;
-      if (h && i<count && h.boards[b][i]!=null) el=makeCard(boardCardAt(h,b,i), true, (animFrom!=null && i>=animFrom) ? boardDelay(b, i-animFrom, count-animFrom) : null, sp().dflip);
+      const bd = (h && animFrom!=null && i>=animFrom && i<count) ? boardDelay(b, i-animFrom, count-animFrom) : null;
+      if (bd!=null && h.boards[b][i]!=null){ sndAt(bd, "deal"); sndAt(bd+sp().dflip+120, "flip"); }
+      if (h && i<count && h.boards[b][i]!=null) el=makeCard(boardCardAt(h,b,i), true, bd, sp().dflip);
       else el=slot();
       el.dataset.b=b; el.dataset.i=i;
       if (i===3||i===4) el.classList.add("gap");
@@ -330,7 +398,9 @@ function renderBoard(h, count, animFrom, poAnim){
     const pd=h.playoff.dice, dp = pd && pd.roll<=5 ? pd.roll-1 : -1;
     h.playoff.board.forEach((c,i)=>{
       if (i===dp && !shown.poDice) c=pd.old;
-      const el=makeCard(c, true, poAnim ? i*sp().dcard + 250 : null, sp().dflip);
+      const pdl = poAnim ? i*sp().dcard + PO_START : null;
+      if (pdl!=null){ sndAt(pdl, "deal"); sndAt(pdl+sp().dflip+120, "flip"); }
+      const el=makeCard(c, true, pdl, sp().dflip);
       if (i===dp && shown.poDice) el.classList.add("swapped");
       el.dataset.b="po"; el.dataset.i=i; if (i===3||i===4) el.classList.add("gap");
       row.appendChild(el);
@@ -393,10 +463,12 @@ function playThrow(rolls, onDone){
     return {w, face, burst, landed:false};
   });
   ov.hidden=false; void ov.offsetWidth; ov.classList.add("show");
+  SND.play("rattle", (start+fly+(nb-1)*stag)/1000);
   const st={finished:false, spin:null}; throwState=st;
   let f=0; st.spin=setInterval(()=>{ f++; wraps.forEach((x,b)=>{ if (!x.landed) setDie(1+((f+b*3)%6), x.face); }); }, 85);
   const land=b=>{
     const x=wraps[b]; if (x.landed) return; x.landed=true;
+    SND.play("land");
     setDie(rolls[b], x.face); x.w.classList.add("landed"); x.burst.classList.add("go");
     ov.classList.remove("shake"); void ov.offsetWidth; ov.classList.add("shake");
     if (wraps.every(y=>y.landed)){
@@ -439,9 +511,11 @@ function animateDice(h){
     const swaps=d.rolls.map((r,b)=>r<=5 ? {b, i:r-1, el:els.board.querySelector('.card[data-b="'+b+'"][data-i="'+(r-1)+'"]')} : null).filter(Boolean);
     if (!swaps.length){ shown.diceDone=true; done(250); return; }
     swaps.forEach(x=>{ if (x.el) x.el.classList.add("down"); });
+    SND.play("swap");
     later(()=>{
       shown.diceDone=true;
       swaps.forEach((x,k)=>{
+        sndAt(k*110,"deal"); sndAt(k*110+sp().flip+120,"flip");
         const el=makeCard(d.neu[x.b], true, k*110); el.classList.add("swapped"); if (x.i>=3) el.classList.add("gap");
         el.dataset.b=x.b; el.dataset.i=x.i;
         if (x.el && x.el.parentNode) x.el.parentNode.replaceChild(el, x.el);
@@ -518,7 +592,7 @@ function chatAdd(m, live){
   if (!m || chatMsgs.some(x=>x.id===m.id)) return;
   chatMsgs.push(m); if (chatMsgs.length>120) chatMsgs.shift();
   const mine = m.from===myId;
-  if (live && !mine && els.chatPanel.hidden){ chatUnread++; toast("💬 "+m.name+": "+m.text); }
+  if (live && !mine){ SND.play("pling"); if (els.chatPanel.hidden){ chatUnread++; toast("💬 "+m.name+": "+m.text); } }
   renderChat();
 }
 function renderChat(){
@@ -580,6 +654,7 @@ function showResults(){
   const rs=readyState(), needMe = rs && rs.mine && !rs.meReady;
   els.resOk.textContent = needMe ? "OK, gotowy" : "OK";
   els.resPop.hidden=false;
+  SND.play("swoosh");
   if (viewer) later(()=>{ els.resPop.hidden=true; }, 9000);
 }
 els.resOk.addEventListener("click", ()=>{
@@ -784,12 +859,20 @@ function renderReady(){
 els.readyBtn.addEventListener("click", ()=>{
   const h=S && S.hand; if (!h || !myId) return;
   if (!h.ready.includes(myId)) h.ready.push(myId);
-  send({t:"ready"}); renderReady(); renderSeats(false);
+  send({t:"ready"}); SND.play("tock"); renderReady(); renderSeats(false);
 });
+let wasBlocked=false;
 setInterval(()=>{
   if (!S || !S.hand) return;
   const rs=readyState(); if (!rs) return;
+  // keep countdowns live, and redraw once more when the wait runs out (otherwise the host button stays disabled)
   if (rs.need && (rs.blocked || !els.readyBar.hidden)) { renderReady(); renderControls(); }
+  if (wasBlocked && !rs.blocked){ renderReady(); renderControls(); if (!busy) renderSeats(false); }
+  wasBlocked = rs.blocked;
+  if (rs.blocked && (isHost() || (rs.mine && !rs.meReady))){
+    const sec=Math.ceil(rs.left/1000), key=hk(S.hand);
+    if (sec>=1 && sec<=5 && !(tickSeen.key===key && tickSeen.sec===sec)){ tickSeen={key, sec}; SND.play("tick", sec===1); }
+  }
   // auto-play for the host: move on as soon as the table allows it
   const h=S.hand;
   if (auto && isHost() && !busy && Date.now()>=autoAt && !rs.blocked && !h.pending.length && (h.street<4 || poPending(h)) && autoKey!==hk(h)){ autoKey=hk(h); next(); }
@@ -885,6 +968,7 @@ function showRules(prev){
   });
   els.rulesNote.textContent = (pname(S.hostId)+" zmienił zasady.") + (mid ? " Obowiązują od następnego rozdania." : "");
   els.rulesPop.hidden=false;
+  SND.play("chime");
   els.rulesOk.focus();
   if (viewer) setTimeout(()=>{ els.rulesPop.hidden=true; }, 10000);   // table screen: nobody to tap OK
 }
@@ -1011,6 +1095,8 @@ els.menuBtn.addEventListener("click",e=>{ e.stopPropagation(); els.menu.hidden ?
 document.addEventListener("click",e=>{ if (!els.menu.hidden && !els.menu.contains(e.target) && e.target!==els.menuBtn) closeMenu(); });
 els.menu.addEventListener("click",e=>{ if (e.target.closest(".mitem")) closeMenu(); });
 els.fourc.checked=prefs.fourColor;
+els.sndOn.checked=prefs.sound;
+els.sndOn.addEventListener("change",()=>{ prefs.sound=els.sndOn.checked; saveJSON(PREF_KEY,prefs); if (prefs.sound){ SND.unlock(); later(()=>SND.play("tock"), 60); } });
 els.speed.addEventListener("change",()=>{ if (!isHost()) return; S.settings.speed=els.speed.value; send({t:"settings", settings:{speed:els.speed.value}}); toast("Tempo animacji zmienione dla wszystkich."); });
 els.fourc.addEventListener("change",()=>{ prefs.fourColor=els.fourc.checked; saveJSON(PREF_KEY,prefs); els.app.classList.toggle("twocolor", !prefs.fourColor); });
 

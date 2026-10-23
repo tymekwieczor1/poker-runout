@@ -14,7 +14,7 @@ const E = require("./engine.js");
 
 const PORT = process.env.PORT || 3000;
 const PUB = __dirname;
-const VERSION = "2.2";
+const VERSION = "2.3";
 // only these files are served (everything sits in one folder, so server.js and package.json must stay private)
 const STATIC = new Set(["index.html","app.js","engine.js","style.css","online.css","thrower.jpg"]);
 const MAX_PLAYERS = 9;

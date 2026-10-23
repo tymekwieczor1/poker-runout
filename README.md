@@ -59,6 +59,8 @@ Potrzebujesz dwóch darmowych kont: **GitHub** (tam trafią pliki) i **Render** 
 
 **Czat:** okrągła ikonka 💬 w lewym górnym rogu jest zawsze na miejscu, także po przewinięciu strony. Gracze piszą do całego stołu (np. żeby poprosić hosta o zmianę zasad). Nowa wiadomość pokazuje się na dole ekranu, a na ikonce pojawia się licznik nieprzeczytanych. Ekran stołu wyświetla czat, ale nie może pisać.
 
+**Dźwięki:** rozdawanie i odwracanie kart, rzut kostką, żetony i fanfara dla zwycięzcy, werbel przed dogrywką, potwierdzenia „Gotowy”, tykanie ostatnich 5 sekund, czat i okienka. Każdy wyłącza je u siebie w menu ☰ („Dźwięki”). Na iPhonie trzeba wyłączyć przełącznik wyciszenia z boku telefonu.
+
 Inne:
 - Gracze mogą dołączać i odchodzić w trakcie gry. Nowa osoba dostaje karty od następnego rozdania.
 - „Pauzuję” w menu sprawia, że gracz nie dostaje kart, aż wróci.
